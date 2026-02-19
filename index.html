@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Аркхолл — Конструктор города</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#e9e3d3;        /* теплее, чуть темнее фон */
+  --panel:#f6f1e4;     /* светлая панель */
+  --border:#b8aa84;    /* более выраженная рамка */
+  --gold:#6f5316;      /* глубже и благороднее */
+  --text:#2a2416;      /* темнее основной текст */
+  --muted:#7a6f57;     /* чуть контрастнее muted */
+  --accent:#355f8a;    /* более насыщенный синий */
+}
+body{background:var(--bg);color:var(--text);font-family:'IM Fell English',Georgia,serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+.topbar{background:var(--panel);border-bottom:2px solid var(--border);padding:7px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+.topbar h1{font-family:'Cinzel',serif;font-size:1.2rem;color:var(--gold);letter-spacing:.15em;text-shadow:0 1px 0 rgba(255,255,255,.8);}
+.sep{width:1px;height:24px;background:var(--border);opacity:.7;}
+.btn{font-family:'Cinzel',serif;font-size:.63rem;letter-spacing:.07em;padding:4px 9px;border-radius:3px;cursor:pointer;border:1.5px solid;transition:all .12s;white-space:nowrap;background:var(--panel);}
+.btn-g{border-color:#9a7a28;color:#6a4e10;}.btn-g:hover{background:#ede4cc;}
+.btn-b{border-color:#5a82a8;color:#3a5a7a;}.btn-b:hover{background:#dde8f0;}
+.btn-r{border-color:#a85050;color:#7a2828;}.btn-r:hover{background:#f0dede;}
+.btn-custom{border-color:#7a5aaa;color:#52347a;}.btn-custom:hover{background:#ece0f8;}
+.grid-ctrl{display:flex;align-items:center;gap:4px;font-size:.71rem;color:var(--muted);}
+.grid-ctrl input{width:38px;background:#fff;border:1px solid var(--border);color:var(--gold);text-align:center;padding:3px;font-family:'Cinzel',serif;font-size:.7rem;border-radius:2px;}
+
+.main{display:flex;flex:1;overflow:hidden;}
+
+.sidebar{width:180px;flex-shrink:0;background:var(--panel);border-right:2px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;box-shadow:2px 0 8px rgba(0,0,0,.05);}
+.sidebar::-webkit-scrollbar{width:4px;}.sidebar::-webkit-scrollbar-track{background:var(--bg);}.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+.s-title{font-family:'Cinzel',serif;font-size:.6rem;letter-spacing:.13em;color:var(--muted);padding:7px 9px 4px;border-bottom:1px solid var(--border);text-transform:uppercase;}
+.s-sec{padding:5px 9px 2px;font-family:'Cinzel',serif;font-size:.56rem;letter-spacing:.1em;color:#aaa090;border-top:1px solid #e0d8c4;margin-top:2px;text-transform:uppercase;}
+.blist{padding:4px 5px;}
+.bi{border-radius:4px;margin-bottom:3px;padding:5px 7px;cursor:grab;border:1.5px solid;transition:transform .1s,box-shadow .1s;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+.bi:hover{transform:translateX(3px);box-shadow:2px 2px 8px rgba(0,0,0,.14);}
+.bi:active{cursor:grabbing;}
+.bi-n{font-family:'Cinzel',serif;font-size:.66rem;font-weight:700;display:block;line-height:1.2;}
+
+.map-area{flex:1;overflow:auto;padding:16px;background:var(--bg);}
+.map-area::-webkit-scrollbar{width:6px;height:6px;}.map-area::-webkit-scrollbar-track{background:var(--bg);}.map-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+canvas#grid{display:block;cursor:crosshair;border-radius:3px;box-shadow:0 3px 16px rgba(0,0,0,.15),0 0 0 1px rgba(0,0,0,.06);}
+
+#ghost{position:fixed;pointer-events:none;z-index:9999;border-radius:4px;opacity:.9;display:none;align-items:center;justify-content:center;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:3px;line-height:1.2;font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;}
+#tip{position:fixed;background:rgba(255,252,244,.97);border:1px solid var(--border);border-radius:4px;padding:5px 9px;font-size:.73rem;pointer-events:none;z-index:1000;opacity:0;transition:opacity .1s;max-width:180px;line-height:1.5;box-shadow:0 2px 10px rgba(0,0,0,.12);}
+#tip strong{color:var(--gold);font-family:'Cinzel',serif;font-size:.68rem;display:block;}
+
+.infobar{background:var(--panel);border-top:1px solid var(--border);padding:4px 14px;font-size:.67rem;color:var(--muted);display:flex;gap:16px;align-items:center;flex-shrink:0;}
+.infobar span{color:var(--gold);font-weight:600;}
+.hint{font-size:.6rem;opacity:.65;}
+
+/* Modal */
+#customModal{display:none;position:fixed;inset:0;background:rgba(40,32,20,.4);z-index:10000;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+#customModal.open{display:flex;}
+.modal-box{background:var(--panel);border:2px solid var(--border);border-radius:6px;padding:22px 24px;min-width:300px;box-shadow:0 12px 48px rgba(0,0,0,.22);}
+.modal-box h2{font-family:'Cinzel',serif;font-size:.88rem;color:var(--gold);letter-spacing:.12em;margin-bottom:16px;}
+.modal-row{margin-bottom:11px;display:flex;flex-direction:column;gap:4px;}
+.modal-row label{font-family:'Cinzel',serif;font-size:.6rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+.modal-row input[type=text],.modal-row input[type=number]{background:#fff;border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:3px;font-family:'IM Fell English',serif;font-size:.8rem;width:100%;}
+.color-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.color-row input[type=color]{width:34px;height:26px;border:1px solid var(--border);border-radius:3px;background:none;cursor:pointer;padding:2px;}
+.color-presets{display:flex;gap:4px;flex-wrap:wrap;}
+.cp{width:17px;height:17px;border-radius:3px;cursor:pointer;border:1.5px solid rgba(0,0,0,.15);transition:transform .1s,box-shadow .1s;}
+.cp:hover{transform:scale(1.25);box-shadow:0 1px 4px rgba(0,0,0,.2);}
+.modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+.wh-row{display:flex;gap:8px;align-items:center;}
+.wh-row input{width:54px;}
+.wh-row span{color:var(--muted);font-size:.8rem;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>АРКХОЛЛ</h1>
+  <div class="sep"></div>
+  <div class="grid-ctrl">
+    <span>Сетка:</span>
+    <input id="gw" type="number" value="14" min="4" max="40">×
+    <input id="gh" type="number" value="14" min="4" max="40">
+    <button class="btn btn-g" onclick="applyGrid()">OK</button>
+  </div>
+  <div class="sep"></div>
+  <button class="btn btn-custom" onclick="openCustomModal()">＋ Своё</button>
+  <div class="sep"></div>
+  <button class="btn btn-r" onclick="clearAll()">Очистить</button>
+  <button class="btn btn-b" onclick="saveLayout()">Сохранить</button>
+  <button class="btn btn-b" onclick="loadLayout()">Загрузить</button>
+  <button class="btn btn-g" onclick="exportPNG()">PNG</button>
+  <button class="btn btn-r" id="delBtn" style="display:none" onclick="deleteSelected()">✕ Удалить</button>
+  <input type="file" id="fi" accept=".json" style="display:none" onchange="onFile(event)">
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="s-title">Здания</div>
+    <div class="s-sec">Муниципальные</div>
+    <div class="blist" id="bl-m"></div>
+    <div class="s-sec">Жилые</div>
+    <div class="blist" id="bl-r"></div>
+    <div class="s-sec">Инфраструктура</div>
+    <div class="blist" id="bl-o"></div>
+    <div class="s-sec">Ландшафт</div>
+    <div class="blist" id="bl-l"></div>
+    <div class="s-sec" style="font-size:.52rem;color:#8a7050;padding-bottom:2px">Фон карты</div>
+    <div style="padding:4px 5px 6px">
+      <div style="font-family:'Cinzel',serif;font-size:.55rem;color:#9a8870;margin-bottom:4px">Покрыть пустые клетки:</div>
+      <div id="bgButtons" style="display:flex;flex-direction:column;gap:3px"></div>
+      <button class="btn btn-r" style="width:100%;margin-top:5px;font-size:.58rem;padding:3px" onclick="clearBgLandscape()">Сброс фона</button>
+    </div>
+    <div class="s-sec" id="sec-u" style="display:none">Пользователь</div>
+    <div class="blist" id="bl-u"></div>
+  </div>
+
+  <div class="map-area" id="mapArea">
+    <canvas id="grid"></canvas>
+  </div>
+</div>
+
+<div class="infobar">
+  <div class="hint">Тянуть из панели — поставить · ПКМ — удалить · Клик — выбрать · Тянуть за угол — изменить размер · Del — удалить</div>
+  <div>Зданий: <span id="cnt">0</span></div>
+  <div id="selInfo"></div>
+</div>
+
+<div id="ghost"></div>
+<div id="tip"></div>
+
+<div id="customModal">
+  <div class="modal-box">
+    <h2>Новое здание</h2>
+    <div class="modal-row">
+      <label>Название</label>
+      <input type="text" id="cm-name" value="Здание" maxlength="24">
+    </div>
+    <div class="modal-row">
+      <label>Размер (клетки)</label>
+      <div class="wh-row">
+        <input type="number" id="cm-w" value="2" min="1" max="10">
+        <span>×</span>
+        <input type="number" id="cm-h" value="2" min="1" max="10">
+      </div>
+    </div>
+    <div class="modal-row">
+      <label>Фон</label>
+      <div class="color-row">
+        <input type="color" id="cm-bg" value="#e8dcc8">
+        <div class="color-presets" id="presets-bg"></div>
+      </div>
+    </div>
+    <div class="modal-row">
+      <label>Рамка</label>
+      <div class="color-row">
+        <input type="color" id="cm-bd" value="#8a6a38">
+        <div class="color-presets" id="presets-bd"></div>
+      </div>
+    </div>
+    <div class="modal-row">
+      <label>Текст</label>
+      <div class="color-row">
+        <input type="color" id="cm-tx" value="#3a2810">
+        <div class="color-presets" id="presets-tx"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-r" onclick="closeCustomModal()">Отмена</button>
+      <button class="btn btn-g" onclick="addCustomBuilding()">Добавить</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// PALETTES
+// ══════════════════════════════════════════════════════
+// Светлая палитра — читаемые насыщенные цвета на светлом фоне
+const PRESET_BG = ['#e8dcc8','#dce4f0','#dceadc','#f0e0cc','#dcd4f0','#d8e8f0','#e8f0d8','#f0ead8','#e0d8f0','#d8f0e4'];
+const PRESET_BD = ['#8a6a38','#4870a8','#3a8850','#a06028','#6850a8','#3888a8','#689838','#a08830','#6040a8','#289870'];
+const PRESET_TX = ['#3a2810','#183058','#183820','#502808','#281858','#084858','#284808','#483808','#180848','#084838'];
+
+// ══════════════════════════════════════════════════════
+// BUILDINGS
+// Светлая палитра: тёплый пергаментный фон + насыщенные рамки
+// ══════════════════════════════════════════════════════
+const ROAD_IDS = new Set(['road','wall','square','water','land','mountain']); // ids treated as road/surface for merging
+
+const DEFS = [
+  // Муниципальные
+  {id:'rathaus',  name:'Ратуша',    w:1,h:1, bg:'#e8daf0', bd:'#6040a0', tx:'#2a1848', cat:'m'},
+  {id:'treasury', name:'Казна',     w:1,h:1, bg:'#d8e4f4', bd:'#3860a8', tx:'#142040', cat:'m'},
+  {id:'market',   name:'Рынок',     w:1,h:1, bg:'#f4e8cc', bd:'#9a7020', tx:'#3c2808', cat:'m'},
+  {id:'forge',    name:'Кузня',     w:1,h:1, bg:'#f4e0d0', bd:'#a05030', tx:'#3c1408', cat:'m'},
+  {id:'guild',    name:'Гильдия',   w:1,h:1, bg:'#d8dcf4', bd:'#3848a8', tx:'#101840', cat:'m'},
+  {id:'storage',  name:'Склад',     w:1,h:1, bg:'#dce8f0', bd:'#3878a0', tx:'#0c2838', cat:'m'},
+  {id:'tavern',   name:'Таверна',   w:1,h:1, bg:'#d8f0e4', bd:'#308850', tx:'#0c3018', cat:'m'},
+  {id:'hotel',    name:'Гостиница', w:1,h:1, bg:'#d8eef4', bd:'#287898', tx:'#083048', cat:'m'},
+  {id:'event',    name:'Ивент-площадка', w:1,h:1, bg:'#f4f0d0', bd:'#988820', tx:'#383808', cat:'m'},
+  {id:'casino',   name:'Казино',    w:1,h:1, bg:'#f0d8e8', bd:'#a03068', tx:'#480820', cat:'m'},
+  {id:'exchange', name:'Биржа',     w:1,h:1, bg:'#e8f4d8', bd:'#588a20', tx:'#1c3008', cat:'m'},
+  {id:'museum',   name:'Музей',     w:1,h:1, bg:'#f4e8d0', bd:'#8a6010', tx:'#3c2808', cat:'m'},
+  {id:'library',  name:'Библиотека',w:1,h:1, bg:'#e8e0f4', bd:'#5840a0', tx:'#201040', cat:'m'},
+  {id:'cemetery', name:'Кладбище',  w:1,h:1, bg:'#d8e4d4', bd:'#405840', tx:'#182018', cat:'m'},
+  {id:'monument', name:'Памятник',  w:1,h:1, bg:'#e8e4dc', bd:'#706848', tx:'#302818', cat:'m'},
+  // Жилые
+  {id:'res',      name:'Жилой',     w:1,h:1, bg:'#e0f0dc', bd:'#408848', tx:'#103018', cat:'r'},
+  // Инфраструктура
+  {id:'road',     name:'Улица',     w:1,h:1, bg:'#c8c4b4', bd:'#8a8270', tx:'#40382c', cat:'o', isRoad:true, roadType:'street'},
+  {id:'square',   name:'Площадь',   w:1,h:1, bg:'#d8d0c0', bd:'#9a8a68', tx:'#302818', cat:'o', isRoad:true, roadType:'square'},
+  {id:'tl',       name:'ТЛ',        w:1,h:1, bg:'#d0e8f8', bd:'#2878c0', tx:'#083060', cat:'o', isTL:true},
+  {id:'reserve',  name:'Резерв',    w:1,h:1, bg:'#e8e4d8', bd:'#908870', tx:'#383020', cat:'o'},
+  {id:'park',     name:'Парк',      w:1,h:1, bg:'#dcf0d4', bd:'#508840', tx:'#183010', cat:'o'},
+  {id:'wall',     name:'Стена',     w:1,h:1, bg:'#b8b0a0', bd:'#5a5248', tx:'#201c18', cat:'o', isRoad:true, roadType:'wall'},
+  // Ландшафт
+  {id:'water',    name:'Вода',      w:1,h:1, bg:'#a8c8e8', bd:'#2860a0', tx:'#083048', cat:'l', isLandscape:true, landscapeType:'water',    isRoad:true, roadType:'ls_water'},
+  {id:'land',     name:'Земля',     w:1,h:1, bg:'#88b860', bd:'#407820', tx:'#183008', cat:'l', isLandscape:true, landscapeType:'land',     isRoad:true, roadType:'ls_land'},
+  {id:'mountain', name:'Гора',      w:1,h:1, bg:'#b8b0a4', bd:'#686058', tx:'#282018', cat:'l', isLandscape:true, landscapeType:'mountain', isRoad:true, roadType:'ls_mountain'},
+];
+
+let CUSTOM_DEFS = [];
+let bgLandscape = null; // id of landscape type for background fill
+
+// ══════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════
+const CS = 50, ST = 6; // cell, street
+let COLS = 14, ROWS = 14;
+let placed = [];
+let selected = null;
+let resizing = null;
+let draggingMove = null;
+let sidebarDrag = null;
+
+const canvas = document.getElementById('grid');
+const ctx = canvas.getContext('2d');
+const ghost = document.getElementById('ghost');
+const tip = document.getElementById('tip');
+
+// ══════════════════════════════════════════════════════
+// CUSTOM MODAL
+// ══════════════════════════════════════════════════════
+function openCustomModal(){ document.getElementById('customModal').classList.add('open'); }
+function closeCustomModal(){ document.getElementById('customModal').classList.remove('open'); }
+
+function buildPresets(){
+  function makeSet(presets, inputId, containerId){
+    const cont = document.getElementById(containerId);
+    presets.forEach(c=>{
+      const d = document.createElement('div');
+      d.className='cp'; d.style.background=c; d.title=c;
+      d.onclick=()=>document.getElementById(inputId).value=c;
+      cont.appendChild(d);
+    });
+  }
+  makeSet(PRESET_BG,'cm-bg','presets-bg');
+  makeSet(PRESET_BD,'cm-bd','presets-bd');
+  makeSet(PRESET_TX,'cm-tx','presets-tx');
+}
+
+let customCounter = 0;
+function addCustomBuilding(){
+  const name = document.getElementById('cm-name').value.trim()||'Здание';
+  const w    = Math.max(1,Math.min(10,parseInt(document.getElementById('cm-w').value)||2));
+  const h    = Math.max(1,Math.min(10,parseInt(document.getElementById('cm-h').value)||2));
+  const bg   = document.getElementById('cm-bg').value;
+  const bd   = document.getElementById('cm-bd').value;
+  const tx   = document.getElementById('cm-tx').value;
+  const id   = 'custom_'+(++customCounter);
+  const def  = {id, name, w, h, bg, bd, tx, cat:'u'};
+  CUSTOM_DEFS.push(def);
+  addSidebarItem(def,'bl-u',true);
+  document.getElementById('sec-u').style.display='';
+  closeCustomModal();
+}
+
+document.getElementById('customModal').addEventListener('click', e=>{
+  if(e.target===document.getElementById('customModal')) closeCustomModal();
+});
+
+// ══════════════════════════════════════════════════════
+// CANVAS UTILS
+// ══════════════════════════════════════════════════════
+function resize(){
+  canvas.width  = COLS*(CS+ST)+ST;
+  canvas.height = ROWS*(CS+ST)+ST;
+}
+function cell2px(col,row){ return {x:col*(CS+ST)+ST, y:row*(CS+ST)+ST}; }
+function px2cell(px,py){ return {col:Math.floor(px/(CS+ST)), row:Math.floor(py/(CS+ST))}; }
+function buildW(w){ return w*(CS+ST)-ST; }
+function buildH(h){ return h*(CS+ST)-ST; }
+function getAllDefs(){ return [...DEFS,...CUSTOM_DEFS]; }
+
+// ══════════════════════════════════════════════════════
+// ROAD MERGING
+// Build a pixel-level "road mask" so adjacent road cells merge visually
+// ══════════════════════════════════════════════════════
+function buildRoadGrid(){
+  const grid = Array.from({length:ROWS},()=>Array(COLS).fill(null));
+  for(const p of placed){
+    const def = getAllDefs().find(d=>d.id===p.bid);
+    if(!def||!def.isRoad) continue;
+    for(let r=p.row;r<p.row+p.h;r++)
+      for(let c=p.col;c<p.col+p.w;c++)
+        if(r<ROWS&&c<COLS) grid[r][c]={color:p.customBg||def.bg, border:p.customBd||def.bd, roadType:def.roadType||'street', landscapeType:def.landscapeType||null};
+  }
+  return grid;
+}
+
+function drawRoads(ec, roadGrid, forExport=false){
+  const sameType = (grid,r,c,type) => r>=0&&r<ROWS&&c>=0&&c<COLS&&grid[r]&&grid[r][c]&&grid[r][c].roadType===type;
+
+  // Pass 1: fill cells + textures
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell = roadGrid[r][c];
+      if(!cell) continue;
+      const {x,y} = cell2px(c,r);
+      const pw = buildW(1), ph = buildH(1);
+      const type = cell.roadType||'street';
+
+      const hasRight  = sameType(roadGrid,r,c+1,type);
+      const hasBottom = sameType(roadGrid,r+1,c,type);
+      const hasLeft   = sameType(roadGrid,r,c-1,type);
+      const hasTop    = sameType(roadGrid,r-1,c,type);
+
+      const ex = x - (hasLeft ? ST : 0);
+      const ey = y - (hasTop  ? ST : 0);
+      const ew = pw + (hasLeft ? ST:0) + (hasRight  ? ST:0);
+      const eh = ph + (hasTop  ? ST:0) + (hasBottom ? ST:0);
+
+      if(type === 'wall'){
+        // === СТЕНА: каменная кладка ===
+        ec.fillStyle = '#9c9488';
+        ec.fillRect(ex,ey,ew,eh);
+        // каменная текстура
+        ec.save();
+        const brickH=10, brickW=14;
+        ec.strokeStyle='rgba(255,255,255,0.15)'; ec.lineWidth=0.8;
+        for(let by=ey+brickH;by<ey+eh;by+=brickH){
+          ec.beginPath(); ec.moveTo(ex,by); ec.lineTo(ex+ew,by); ec.stroke();
+        }
+        for(let rowIdx=0,by2=ey;by2<ey+eh;by2+=brickH,rowIdx++){
+          const offset=(rowIdx%2)*brickW*0.5;
+          for(let bx=ex+offset;bx<ex+ew;bx+=brickW){
+            ec.beginPath(); ec.moveTo(bx,by2); ec.lineTo(bx,Math.min(by2+brickH,ey+eh)); ec.stroke();
+          }
+        }
+        ec.strokeStyle='rgba(0,0,0,0.2)'; ec.lineWidth=0.5;
+        for(let by=ey+brickH;by<ey+eh;by+=brickH){
+          ec.beginPath(); ec.moveTo(ex,by+1); ec.lineTo(ex+ew,by+1); ec.stroke();
+        }
+        ec.fillStyle='rgba(0,0,0,0.06)';
+        ec.fillRect(ex,ey,ew,eh);
+        ec.restore();
+      } else if(type==='square'){
+        // === ПЛОЩАДЬ: светлая брусчатка ===
+        ec.fillStyle = '#d4ccba';
+        ec.fillRect(ex,ey,ew,eh);
+        drawSquareTexture(ec,ex,ey,ew,eh);
+      } else if(type==='ls_water'||type==='ls_land'||type==='ls_mountain'){
+        // === ЛАНДШАФТ: рисуем текстуру без рамки ===
+        const ltype = cell.landscapeType;
+        const lcolors = {water:'#a8c8e8',land:'#88b860',mountain:'#b0a898'};
+        ec.fillStyle = lcolors[ltype]||'#c0c0c0';
+        ec.fillRect(ex,ey,ew,eh);
+        drawLandscapeTexture(ec,ex,ey,ew,eh,ltype);
+      } else {
+        // === УЛИЦА: асфальт с осевой линией ===
+        ec.fillStyle = '#c0bba9';
+        ec.fillRect(ex,ey,ew,eh);
+        // зернистость
+        ec.fillStyle='rgba(0,0,0,0.05)';
+        for(let gx=ex+2;gx<ex+ew-1;gx+=4)
+          for(let gy=ey+2;gy<ey+eh-1;gy+=4)
+            ec.fillRect(gx,gy,1,1);
+        // осевая жёлтая пунктирная линия
+        ec.save();
+        ec.strokeStyle='rgba(240,230,120,0.55)';
+        ec.lineWidth=1.3;
+        ec.setLineDash([5,4]);
+        if(hasLeft&&hasRight){ ec.beginPath(); ec.moveTo(x,y+ph/2); ec.lineTo(x+pw,y+ph/2); ec.stroke(); }
+        if(hasTop&&hasBottom){ ec.beginPath(); ec.moveTo(x+pw/2,y); ec.lineTo(x+pw/2,y+ph); ec.stroke(); }
+        ec.setLineDash([]);
+        ec.restore();
+      }
+    }
+  }
+
+  // Pass 2: outer border
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell = roadGrid[r][c];
+      if(!cell) continue;
+      const {x,y} = cell2px(c,r);
+      const pw = buildW(1), ph = buildH(1);
+      const type = cell.roadType||'street';
+
+      const hasRight  = sameType(roadGrid,r,c+1,type);
+      const hasBottom = sameType(roadGrid,r+1,c,type);
+      const hasLeft   = sameType(roadGrid,r,c-1,type);
+      const hasTop    = sameType(roadGrid,r-1,c,type);
+
+      if(type==='ls_water'||type==='ls_land'||type==='ls_mountain') continue; // landscape: no border
+      ec.strokeStyle = type==='wall' ? 'rgba(30,25,20,0.5)' : 'rgba(70,65,50,0.2)';
+      ec.lineWidth   = type==='wall' ? 1.8 : 0.8;
+      ec.beginPath();
+      if(!hasTop)    { ec.moveTo(x,y);       ec.lineTo(x+pw,y); }
+      if(!hasBottom) { ec.moveTo(x,y+ph);    ec.lineTo(x+pw,y+ph); }
+      if(!hasLeft)   { ec.moveTo(x,y);       ec.lineTo(x,y+ph); }
+      if(!hasRight)  { ec.moveTo(x+pw,y);    ec.lineTo(x+pw,y+ph); }
+      ec.stroke();
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════════════════════
+function draw(){
+  const W=canvas.width, H=canvas.height;
+
+  // Paper background — warm cream
+  ctx.fillStyle='#f1ecdf'; ctx.fillRect(0,0,W,H);
+
+  // Street grid — slightly darker cream lines
+  ctx.fillStyle='#d6cfbb';
+  for(let c=0;c<=COLS;c++) ctx.fillRect(c*(CS+ST),0,ST,H);
+  for(let r=0;r<=ROWS;r++) ctx.fillRect(0,r*(CS+ST),W,ST);
+
+  // Empty cells — lighter paper
+  ctx.fillStyle='#fbf8f1';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const {x,y}=cell2px(c,r);
+    ctx.fillRect(x,y,CS,CS);
+  }
+
+  // Background landscape — fill empty cells
+  if(bgLandscape){
+    const bgDef=getAllDefs().find(d=>d.id===bgLandscape);
+    if(bgDef){
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+        const isOccupied=placed.some(p=>c>=p.col&&c<p.col+p.w&&r>=p.row&&r<p.row+p.h);
+        if(!isOccupied){
+          const {x,y}=cell2px(c,r);
+          ctx.fillStyle=bgDef.bg; ctx.fillRect(x,y,CS,CS);
+          drawLandscapeTexture(ctx,x,y,CS,CS,bgDef.landscapeType);
+        }
+      }
+    }
+  }
+
+  // Subtle dot grid — like old map paper
+  ctx.fillStyle='rgba(160,145,110,0.22)';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const {x,y}=cell2px(c,r);
+    ctx.fillRect(x+CS/2-0.5, y+CS/2-0.5, 1, 1);
+  }
+
+  // Coord labels
+  ctx.fillStyle='rgba(140,128,98,0.35)';
+  ctx.font='7px monospace'; ctx.textBaseline='top';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const {x,y}=cell2px(c,r);
+    if(c===0||r===0) ctx.fillText(`${c},${r}`,x+2,y+2);
+  }
+
+  // Roads first (merged, no border clash with buildings)
+  const roadGrid = buildRoadGrid();
+  drawRoads(ctx, roadGrid);
+
+  // Buildings (non-road)
+  for(const p of placed){
+    const def=getAllDefs().find(d=>d.id===p.bid);
+    if(!def||def.isRoad) continue;
+    drawBuilding(ctx, p, def);
+  }
+
+  // Selection ring
+  if(selected){
+    const p=placed.find(x=>x.id===selected);
+    if(p){
+      const {x,y}=cell2px(p.col,p.row);
+      const pw=buildW(p.w),ph=buildH(p.h);
+      ctx.strokeStyle='rgba(90,140,200,0.7)';
+      ctx.lineWidth=1.5; ctx.setLineDash([5,3]);
+      ctx.strokeRect(x-4,y-4,pw+8,ph+8);
+      ctx.setLineDash([]);
+      const def=getAllDefs().find(d=>d.id===p.bid);
+      if(def) drawHandles(ctx,x,y,pw,ph);
+    }
+  }
+}
+
+function drawBuilding(ec, p, def){
+  const {x,y}=cell2px(p.col,p.row);
+  const pw=buildW(p.w), ph=buildH(p.h);
+  const isSel=selected===p.id;
+  const bg=p.customBg||def.bg;
+  const bd=p.customBd||def.bd;
+  const tx=p.customTx||def.tx;
+
+  // Drop shadow
+  ec.save();
+  ec.shadowColor='rgba(0,0,0,0.18)';
+  ec.shadowBlur=8; ec.shadowOffsetX=2; ec.shadowOffsetY=3;
+  ec.fillStyle=bg;
+  ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.fill();
+  ec.restore();
+
+  // Fill with subtle gradient
+  const gr=ec.createLinearGradient(x,y,x,y+ph);
+  gr.addColorStop(0,'rgba(255,255,255,0.28)');
+  gr.addColorStop(1,'rgba(0,0,0,0.06)');
+  ec.fillStyle=gr;
+  ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.fill();
+
+  // Texture
+  if(p.bid==='reserve'){ hatchEC(ec,x,y,pw,ph,'rgba(0,0,0,0.08)',10); }
+  if(p.bid==='park'){    dotsEC(ec,x,y,pw,ph,'rgba(50,120,40,0.18)'); }
+  // Landscape textures
+  const ldef=getAllDefs().find(d=>d.id===p.bid);
+  if(ldef&&ldef.isLandscape) drawLandscapeTexture(ec,x,y,pw,ph,ldef.landscapeType);
+  // TL (транслокатор) texture
+  if(p.bid==='tl') drawTLTexture(ec,x,y,pw,ph);
+  // Square texture
+  if(p.bid==='square') drawSquareTexture(ec,x,y,pw,ph);
+
+  // Border
+  ec.strokeStyle = isSel ? '#3a6ab0' : bd;
+  ec.lineWidth   = isSel ? 2.5 : 1.6;
+  ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.stroke();
+
+  // Name / Icon
+  if(!def.isLandscape){
+    if(def.icon){
+      // Draw icon building (museum, library, cemetery, monument)
+      drawIconBuilding(ec,x,y,pw,ph,def.icon,p.customLabel||def.name,tx);
+    } else {
+      const displayName = p.customLabel||def.name;
+      const fs = Math.max(8, Math.min(13, pw/Math.max(displayName.length,1)*1.3));
+      ec.font=`700 ${fs}px 'Cinzel',serif`;
+      ec.textAlign='center'; ec.textBaseline='middle';
+      ec.fillStyle=tx;
+      const lines=wrapText(displayName,pw-10,fs);
+      const lh=fs+2.5;
+      const ty=y+ph/2-(lines.length-1)*lh/2;
+      lines.forEach((l,i)=>ec.fillText(l,x+pw/2,ty+i*lh));
+    }
+  }
+}
+
+function drawHandles(ec,x,y,w,h){
+  const hs=8;
+  [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([hx,hy])=>{
+    ec.fillStyle='#4a80cc';
+    ec.fillRect(hx-hs/2,hy-hs/2,hs,hs);
+    ec.strokeStyle='#fff'; ec.lineWidth=1;
+    ec.strokeRect(hx-hs/2,hy-hs/2,hs,hs);
+  });
+}
+
+function rrectEC(ec,x,y,w,h,r){
+  ec.beginPath();
+  ec.moveTo(x+r,y);ec.lineTo(x+w-r,y);ec.quadraticCurveTo(x+w,y,x+w,y+r);
+  ec.lineTo(x+w,y+h-r);ec.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ec.lineTo(x+r,y+h);ec.quadraticCurveTo(x,y+h,x,y+h-r);
+  ec.lineTo(x,y+r);ec.quadraticCurveTo(x,y,x+r,y);ec.closePath();
+}
+
+function hatchEC(ec,x,y,w,h,color,gap){
+  ec.save();
+  // Clip to building bounds so hatch doesn't overflow
+  ec.beginPath(); ec.rect(x,y,w,h); ec.clip();
+  ec.strokeStyle=color; ec.lineWidth=1;
+  ec.beginPath();
+  for(let i=-(h+gap);i<w+h+gap;i+=gap){ ec.moveTo(x+i,y); ec.lineTo(x+i+h,y+h); }
+  ec.stroke(); ec.restore();
+}
+function dotsEC(ec,x,y,w,h,color){
+  ec.save(); ec.fillStyle=color;
+  for(let dx=10;dx<w;dx+=12) for(let dy=10;dy<h;dy+=12){
+    ec.beginPath(); ec.arc(x+dx,y+dy,2.5,0,Math.PI*2); ec.fill();
+  }
+  ec.restore();
+}
+
+// ══════════════════════════════════════════════════════
+// ICON BUILDINGS
+// ══════════════════════════════════════════════════════
+function drawIconBuilding(ec,x,y,w,h,iconType,label,tx){
+  ec.save(); ec.beginPath(); ec.rect(x,y,w,h); ec.clip();
+  const cx=x+w/2, cy=y+h/2;
+  const s=Math.min(w,h);
+
+  if(iconType==='museum'){
+    // Колонны + треугольный фронтон
+    const bx=x+w*0.1, bw=w*0.8, by=y+h*0.35, bh=h*0.5;
+    // Основание
+    ec.fillStyle='rgba(160,120,40,0.35)';
+    ec.fillRect(bx,by+bh,bw,h*0.1);
+    // Колонны
+    ec.fillStyle='rgba(200,165,80,0.5)';
+    const ncol=4, cw=bw*0.1;
+    for(let i=0;i<ncol;i++){
+      const cx2=bx+bw*0.1+i*(bw*0.8/(ncol-1));
+      ec.fillRect(cx2-cw/2,by,cw,bh);
+      // капитель
+      ec.fillRect(cx2-cw*0.7,by-h*0.04,cw*1.4,h*0.04);
+    }
+    // Фронтон
+    ec.strokeStyle='rgba(140,100,30,0.6)'; ec.lineWidth=1.2; ec.fillStyle='rgba(220,185,100,0.3)';
+    ec.beginPath(); ec.moveTo(cx,y+h*0.12); ec.lineTo(bx,by); ec.lineTo(bx+bw,by); ec.closePath();
+    ec.fill(); ec.stroke();
+    // Ступени
+    ec.fillStyle='rgba(180,145,60,0.25)';
+    ec.fillRect(bx-w*0.05,by+bh,bw+w*0.1,h*0.07);
+    ec.fillRect(bx-w*0.03,by+bh+h*0.07,bw+w*0.06,h*0.05);
+  } else if(iconType==='library'){
+    // Книги на полке
+    const shelfY=y+h*0.55, shelfH=h*0.06;
+    ec.fillStyle='rgba(100,70,30,0.5)';
+    ec.fillRect(x+w*0.1,shelfY,w*0.8,shelfH);
+    const bookColors=['rgba(180,50,50,0.6)','rgba(50,100,180,0.6)','rgba(60,140,60,0.6)',
+                       'rgba(160,100,40,0.6)','rgba(120,50,150,0.6)','rgba(180,140,40,0.6)'];
+    const nbk=6, bkw=w*0.8/nbk;
+    for(let i=0;i<nbk;i++){
+      const bkh=h*(0.2+((i*7+3)%5)*0.04);
+      ec.fillStyle=bookColors[i%bookColors.length];
+      ec.fillRect(x+w*0.1+i*bkw+1,shelfY-bkh,bkw-2,bkh);
+      ec.strokeStyle='rgba(0,0,0,0.2)'; ec.lineWidth=0.5;
+      ec.strokeRect(x+w*0.1+i*bkw+1,shelfY-bkh,bkw-2,bkh);
+    }
+    // Вторая полка
+    const shelf2Y=y+h*0.25;
+    ec.fillStyle='rgba(100,70,30,0.5)';
+    ec.fillRect(x+w*0.1,shelf2Y,w*0.8,shelfH);
+    for(let i=0;i<5;i++){
+      const bkh=h*(0.18+((i*5+2)%4)*0.03);
+      ec.fillStyle=bookColors[(i+2)%bookColors.length];
+      ec.fillRect(x+w*0.1+i*(w*0.8/5)+1,shelf2Y-bkh,(w*0.8/5)-2,bkh);
+    }
+    // Арочное окно
+    ec.strokeStyle='rgba(80,60,120,0.4)'; ec.lineWidth=1;
+    ec.beginPath(); ec.arc(cx,y+h*0.18,w*0.12,Math.PI,0); ec.lineTo(cx+w*0.12,y+h*0.28); ec.lineTo(cx-w*0.12,y+h*0.28); ec.closePath(); ec.stroke();
+  } else if(iconType==='cemetery'){
+    // Кресты и надгробия
+    ec.strokeStyle='rgba(60,80,55,0.7)'; ec.lineWidth=1.2; ec.fillStyle='rgba(80,100,70,0.35)';
+    const graves=[
+      {gx:cx-w*0.28,gy:cy+h*0.05,sz:0.85},{gx:cx+w*0.22,gy:cy+h*0.1,sz:0.75},
+      {gx:cx-w*0.05,gy:cy+h*0.08,sz:1.0},{gx:cx-w*0.28,gy:cy-h*0.12,sz:0.7},
+    ];
+    // Трава фона
+    ec.fillStyle='rgba(60,100,45,0.12)';
+    ec.fillRect(x,y,w,h);
+    // Дорожка
+    ec.fillStyle='rgba(160,150,130,0.25)';
+    ec.fillRect(cx-3,y+h*0.5,6,h*0.5);
+    // Церковь/часовня вверху
+    const chW=w*0.32, chH=h*0.38, chX=cx-chW/2, chY=y+h*0.08;
+    ec.fillStyle='rgba(200,200,195,0.6)';
+    ec.fillRect(chX,chY,chW,chH);
+    ec.strokeStyle='rgba(60,65,60,0.55)'; ec.lineWidth=1;
+    ec.strokeRect(chX,chY,chW,chH);
+    // Крыша церкви
+    ec.fillStyle='rgba(80,90,80,0.5)';
+    ec.beginPath(); ec.moveTo(cx,chY-h*0.1); ec.lineTo(chX,chY); ec.lineTo(chX+chW,chY); ec.closePath(); ec.fill();
+    // Крест на церкви
+    const crTopX=cx,crTopY=chY-h*0.18;
+    ec.strokeStyle='rgba(50,55,50,0.75)'; ec.lineWidth=1.5;
+    ec.beginPath(); ec.moveTo(crTopX,crTopY-h*0.08); ec.lineTo(crTopX,crTopY+h*0.04); ec.stroke();
+    ec.beginPath(); ec.moveTo(crTopX-w*0.06,crTopY-h*0.03); ec.lineTo(crTopX+w*0.06,crTopY-h*0.03); ec.stroke();
+    // Надгробия и кресты
+    for(const g of graves){
+      const gs=g.sz*s*0.1;
+      // надгробие
+      ec.fillStyle='rgba(170,168,160,0.6)';
+      ec.strokeStyle='rgba(70,72,68,0.5)'; ec.lineWidth=0.8;
+      ec.beginPath();
+      ec.moveTo(g.gx-gs*0.7,g.gy); ec.lineTo(g.gx+gs*0.7,g.gy);
+      ec.lineTo(g.gx+gs*0.7,g.gy+gs*1.3); ec.lineTo(g.gx-gs*0.7,g.gy+gs*1.3); ec.closePath();
+      // арочный верх
+      ec.arc(g.gx,g.gy,gs*0.7,Math.PI,0);
+      ec.fill(); ec.stroke();
+      // крест
+      ec.strokeStyle='rgba(50,60,48,0.65)'; ec.lineWidth=1;
+      ec.beginPath(); ec.moveTo(g.gx,g.gy-gs*2.2); ec.lineTo(g.gx,g.gy-gs*0.5); ec.stroke();
+      ec.beginPath(); ec.moveTo(g.gx-gs*0.7,g.gy-gs*1.5); ec.lineTo(g.gx+gs*0.7,g.gy-gs*1.5); ec.stroke();
+    }
+    // Забор
+    ec.strokeStyle='rgba(80,90,70,0.4)'; ec.lineWidth=0.8;
+    for(let fx=x+w*0.05;fx<x+w*0.95;fx+=w*0.07){
+      ec.beginPath(); ec.moveTo(fx,y+h*0.88); ec.lineTo(fx,y+h*0.98); ec.stroke();
+    }
+    ec.beginPath(); ec.moveTo(x+w*0.05,y+h*0.91); ec.lineTo(x+w*0.95,y+h*0.91); ec.stroke();
+  } else if(iconType==='monument'){
+    // Обелиск/колонна на постаменте
+    const pW=w*0.55, pH=h*0.2, pX=cx-pW/2, pY=y+h*0.75;
+    // Постамент
+    const grd2=ec.createLinearGradient(pX,pY,pX+pW,pY);
+    grd2.addColorStop(0,'rgba(180,170,155,0.7)');
+    grd2.addColorStop(0.5,'rgba(210,200,185,0.8)');
+    grd2.addColorStop(1,'rgba(160,152,140,0.65)');
+    ec.fillStyle=grd2;
+    ec.fillRect(pX,pY,pW,pH);
+    ec.strokeStyle='rgba(100,90,75,0.5)'; ec.lineWidth=0.8;
+    ec.strokeRect(pX,pY,pW,pH);
+    // Ступени
+    ec.fillStyle='rgba(190,182,168,0.5)';
+    ec.fillRect(pX-w*0.05,pY+pH,pW+w*0.1,h*0.06);
+    // Обелиск — трапеция + пирамидка
+    const oW1=w*0.22, oW2=w*0.08, oH=h*0.55, oX1=cx-oW1/2, oX2=cx-oW2/2, oY=pY-oH;
+    const grd3=ec.createLinearGradient(oX1,oY,oX1+oW1,oY);
+    grd3.addColorStop(0,'rgba(190,182,168,0.75)');
+    grd3.addColorStop(0.45,'rgba(225,218,205,0.9)');
+    grd3.addColorStop(1,'rgba(160,154,143,0.65)');
+    ec.fillStyle=grd3;
+    ec.beginPath();
+    ec.moveTo(oX1,pY); ec.lineTo(oX1+oW1,pY);
+    ec.lineTo(oX2+oW2,oY); ec.lineTo(oX2,oY); ec.closePath(); ec.fill();
+    ec.strokeStyle='rgba(90,82,70,0.5)'; ec.lineWidth=0.9;
+    ec.beginPath();
+    ec.moveTo(oX1,pY); ec.lineTo(oX1+oW1,pY);
+    ec.lineTo(oX2+oW2,oY); ec.lineTo(oX2,oY); ec.closePath(); ec.stroke();
+    // Пирамидальная вершина
+    ec.fillStyle='rgba(215,208,195,0.9)';
+    ec.beginPath(); ec.moveTo(cx,oY-h*0.1); ec.lineTo(oX2,oY); ec.lineTo(oX2+oW2,oY); ec.closePath(); ec.fill();
+    ec.strokeStyle='rgba(90,82,70,0.5)'; ec.lineWidth=0.8;
+    ec.beginPath(); ec.moveTo(cx,oY-h*0.1); ec.lineTo(oX2,oY); ec.lineTo(oX2+oW2,oY); ec.closePath(); ec.stroke();
+  }
+
+  ec.restore();
+  // Small label below
+  ec.font=`600 ${Math.max(6,Math.min(8,w*0.15))}px 'Cinzel',serif`;
+  ec.textAlign='center'; ec.textBaseline='bottom';
+  ec.fillStyle=tx;
+  ec.fillText(label, cx, y+h-3);
+}
+
+// ══════════════════════════════════════════════════════
+// TEXTURE FUNCTIONS
+// ══════════════════════════════════════════════════════
+function drawLandscapeTexture(ec,x,y,w,h,type){
+  ec.save(); ec.beginPath(); ec.rect(x,y,w,h); ec.clip();
+  if(type==='water'){
+    // Волны — горизонтальные синусоиды
+    ec.strokeStyle='rgba(40,100,180,0.22)'; ec.lineWidth=1.2;
+    for(let wy=y+8;wy<y+h-4;wy+=8){
+      ec.beginPath();
+      for(let wx=x;wx<x+w;wx+=2){
+        const oy=Math.sin((wx-x)*0.35)*2.5;
+        wx===x ? ec.moveTo(wx,wy+oy) : ec.lineTo(wx,wy+oy);
+      }
+      ec.stroke();
+    }
+    // Блики
+    ec.strokeStyle='rgba(255,255,255,0.3)'; ec.lineWidth=0.8;
+    for(let wy=y+12;wy<y+h-4;wy+=16){
+      ec.beginPath();
+      for(let wx=x+4;wx<x+w-4;wx+=2){
+        const oy=Math.sin((wx-x)*0.35+1)*2;
+        wx===x+4 ? ec.moveTo(wx,wy+oy) : ec.lineTo(wx,wy+oy);
+      }
+      ec.stroke();
+    }
+  } else if(type==='land'){
+    // Трава — маленькие штрихи
+    ec.strokeStyle='rgba(40,100,20,0.3)'; ec.lineWidth=1;
+    for(let gx=x+6;gx<x+w-2;gx+=8){
+      for(let gy=y+6;gy<y+h-2;gy+=8){
+        const jx=(gx+gy)%5-2, jy=(gx*gy)%5-2;
+        ec.beginPath();
+        ec.moveTo(gx+jx, gy+jy+3);
+        ec.lineTo(gx+jx-1, gy+jy);
+        ec.stroke();
+        ec.beginPath();
+        ec.moveTo(gx+jx+3, gy+jy+3);
+        ec.lineTo(gx+jx+3, gy+jy);
+        ec.stroke();
+      }
+    }
+    // Крапинки земли
+    ec.fillStyle='rgba(80,50,20,0.08)';
+    for(let gx=x+3;gx<x+w;gx+=9) for(let gy=y+4;gy<y+h;gy+=9){
+      const jx=(gx*3+gy)%7-3;
+      ec.fillRect(gx+jx,gy,2,1);
+    }
+  } else if(type==='mountain'){
+    // Горные пики — чёткие треугольники с тенями и снегом
+    // Задний план — дальние горы
+    const drawPeak = (px,py,pw2,ph2,snowFrac,shadowAlpha) => {
+      const tipX=px, tipY=py-ph2;
+      const baseL=px-pw2/2, baseR=px+pw2/2, baseY=py;
+      // тень (правый склон)
+      ec.fillStyle=`rgba(80,72,65,${shadowAlpha})`;
+      ec.beginPath(); ec.moveTo(tipX,tipY); ec.lineTo(baseR,baseY); ec.lineTo(px+pw2*0.1,baseY); ec.closePath(); ec.fill();
+      // основная гора
+      const grd=ec.createLinearGradient(tipX,tipY,tipX,baseY);
+      grd.addColorStop(0,'rgba(155,148,138,0.95)');
+      grd.addColorStop(1,'rgba(125,118,108,0.85)');
+      ec.fillStyle=grd;
+      ec.beginPath(); ec.moveTo(tipX,tipY); ec.lineTo(baseL,baseY); ec.lineTo(baseR,baseY); ec.closePath(); ec.fill();
+      // контур
+      ec.strokeStyle='rgba(70,62,55,0.5)'; ec.lineWidth=0.9;
+      ec.beginPath(); ec.moveTo(tipX,tipY); ec.lineTo(baseL,baseY); ec.lineTo(baseR,baseY); ec.closePath(); ec.stroke();
+      // снежная шапка
+      const snowH=ph2*snowFrac;
+      const sx1=tipX-(pw2/2)*(snowH/ph2), sx2=tipX+(pw2/2)*(snowH/ph2);
+      ec.fillStyle='rgba(240,245,255,0.88)';
+      ec.beginPath(); ec.moveTo(tipX,tipY); ec.lineTo(sx1,tipY+snowH); ec.lineTo(sx2,tipY+snowH); ec.closePath(); ec.fill();
+      // синяя тень на снеге
+      ec.fillStyle='rgba(160,185,220,0.3)';
+      ec.beginPath(); ec.moveTo(tipX,tipY); ec.lineTo(tipX,tipY+snowH*0.6); ec.lineTo(sx2,tipY+snowH); ec.closePath(); ec.fill();
+    };
+    // Дальние горы (меньше, бледнее)
+    ec.globalAlpha=0.55;
+    drawPeak(x+w*0.28, y+h*0.82, w*0.38, h*0.52, 0.32, 0.12);
+    drawPeak(x+w*0.72, y+h*0.78, w*0.3,  h*0.42, 0.28, 0.1);
+    ec.globalAlpha=1;
+    // Главная гора (передний план)
+    drawPeak(x+w*0.5,  y+h*0.92, w*0.55, h*0.72, 0.3,  0.18);
+  }
+  ec.restore();
+}
+
+function drawTLTexture(ec,x,y,w,h){
+  ec.save(); ec.beginPath(); ec.rect(x,y,w,h); ec.clip();
+  const cx=x+w/2, cy=y+h/2, r=Math.min(w,h)*0.32;
+  // Внешнее кольцо
+  ec.strokeStyle='rgba(20,100,200,0.5)'; ec.lineWidth=2;
+  ec.beginPath(); ec.arc(cx,cy,r,0,Math.PI*2); ec.stroke();
+  // Внутренние спирали
+  ec.strokeStyle='rgba(20,150,220,0.35)'; ec.lineWidth=1;
+  ec.beginPath(); ec.arc(cx,cy,r*0.6,0,Math.PI*2); ec.stroke();
+  // Стрелки-порталы
+  ec.strokeStyle='rgba(60,160,255,0.55)'; ec.lineWidth=1.5;
+  for(let a=0;a<Math.PI*2;a+=Math.PI/3){
+    const x1=cx+Math.cos(a)*r*0.6, y1=cy+Math.sin(a)*r*0.6;
+    const x2=cx+Math.cos(a)*r*0.95, y2=cy+Math.sin(a)*r*0.95;
+    ec.beginPath(); ec.moveTo(x1,y1); ec.lineTo(x2,y2); ec.stroke();
+  }
+  // Центральная точка
+  ec.fillStyle='rgba(40,140,255,0.7)';
+  ec.beginPath(); ec.arc(cx,cy,r*0.18,0,Math.PI*2); ec.fill();
+  ec.restore();
+}
+
+function drawSquareTexture(ec,x,y,w,h){
+  ec.save(); ec.beginPath(); ec.rect(x,y,w,h); ec.clip();
+  // Каменная брусчатка — сетка прямоугольников
+  const bw=10, bh=8;
+  ec.strokeStyle='rgba(100,88,68,0.25)'; ec.lineWidth=0.8;
+  for(let row=0,ry=y;ry<y+h;ry+=bh,row++){
+    const offset=(row%2)*(bw/2);
+    for(let bx=x-offset;bx<x+w+bw;bx+=bw){
+      ec.strokeRect(bx,ry,bw,bh);
+    }
+  }
+  // Лёгкая тень между плитами
+  ec.fillStyle='rgba(80,70,50,0.05)';
+  for(let ry=y;ry<y+h;ry+=bh) ec.fillRect(x,ry,w,1);
+  ec.restore();
+}
+
+// ══════════════════════════════════════════════════════
+// BACKGROUND LANDSCAPE
+// ══════════════════════════════════════════════════════
+function setBgLandscape(id){
+  bgLandscape = (bgLandscape===id) ? null : id;
+  // Update button states
+  document.querySelectorAll('.bgbtn').forEach(b=>{
+    b.style.opacity = (b.dataset.lid===bgLandscape) ? '1' : '0.55';
+    b.style.fontWeight = (b.dataset.lid===bgLandscape) ? '700' : '400';
+  });
+  draw();
+}
+function clearBgLandscape(){ bgLandscape=null; document.querySelectorAll('.bgbtn').forEach(b=>{b.style.opacity='0.55';b.style.fontWeight='400';}); draw(); }
+
+function buildBgButtons(){
+  const cont = document.getElementById('bgButtons');
+  if(!cont) return;
+  DEFS.filter(d=>d.isLandscape).forEach(d=>{
+    const btn = document.createElement('button');
+    btn.className='btn bgbtn';
+    btn.dataset.lid=d.id;
+    btn.style.cssText=`background:${d.bg};border-color:${d.bd};color:${d.tx};width:100%;font-size:.58rem;padding:3px 5px;opacity:0.55;text-align:left`;
+    btn.textContent='◻ '+d.name;
+    btn.onclick=()=>setBgLandscape(d.id);
+    cont.appendChild(btn);
+  });
+}
+
+function wrapText(text,maxW,fs){
+  const words=text.split(' '); const lines=[]; let cur='';
+  const cw=fs*0.6;
+  for(const w of words){
+    const test=cur?cur+' '+w:w;
+    if(test.length*cw>maxW&&cur){ lines.push(cur); cur=w; }
+    else cur=test;
+  }
+  if(cur) lines.push(cur);
+  return lines;
+}
+
+// ══════════════════════════════════════════════════════
+// SIDEBAR
+// ══════════════════════════════════════════════════════
+function addSidebarItem(b, containerId, isCustom=false){
+  const el=document.createElement('div');
+  el.className='bi';
+  el.style.cssText=`background:${b.bg};border-color:${b.bd};color:${b.tx}`;
+  el.draggable=true; el.dataset.bid=b.id;
+  if(isCustom){
+    el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;gap:4px"><span class="bi-n" style="flex:1">${b.name}</span><span style="cursor:pointer;opacity:.45;font-size:.7rem;padding:0 1px" title="Удалить тип" data-cid="${b.id}">✕</span></div>`;
+    el.querySelector('[data-cid]').addEventListener('click',e=>{
+      e.stopPropagation(); removeCustomDef(b.id);
+    });
+  } else {
+    el.innerHTML=`<span class="bi-n">${b.name}</span>`;
+  }
+  el.addEventListener('dragstart',onSidebarDragStart);
+  document.getElementById(containerId).appendChild(el);
+}
+
+function buildSidebar(){
+  ['bl-m','bl-r','bl-o','bl-l'].forEach(id=>document.getElementById(id).innerHTML='');
+  const cats={m:'bl-m',r:'bl-r',o:'bl-o',l:'bl-l'};
+  for(const b of DEFS) addSidebarItem(b,cats[b.cat],false);
+}
+
+function removeCustomDef(cid){
+  CUSTOM_DEFS=CUSTOM_DEFS.filter(d=>d.id!==cid);
+  placed=placed.filter(p=>p.bid!==cid);
+  if(selected&&!placed.find(p=>p.id===selected)){
+    selected=null;
+    document.getElementById('delBtn').style.display='none';
+    document.getElementById('selInfo').textContent='';
+  }
+  document.getElementById('bl-u').innerHTML='';
+  CUSTOM_DEFS.forEach(b=>addSidebarItem(b,'bl-u',true));
+  if(!CUSTOM_DEFS.length) document.getElementById('sec-u').style.display='none';
+  updateCount(); draw();
+}
+
+function onSidebarDragStart(e){
+  sidebarDrag=e.currentTarget.dataset.bid;
+  const b=getAllDefs().find(d=>d.id===sidebarDrag);
+  ghost.style.cssText=`display:flex;width:${buildW(b.w)}px;height:${buildH(b.h)}px;background:${b.bg};border:1.5px solid ${b.bd};color:${b.tx};position:fixed;pointer-events:none;z-index:9999;border-radius:4px;opacity:.9;align-items:center;justify-content:center;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:3px;line-height:1.2;font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;`;
+  ghost.textContent=b.name;
+  e.dataTransfer.setDragImage(new Image(),0,0);
+}
+
+document.addEventListener('dragover',e=>{ e.preventDefault(); if(!sidebarDrag) return; ghost.style.left=(e.clientX+8)+'px'; ghost.style.top=(e.clientY+8)+'px'; });
+document.addEventListener('dragend',()=>{ ghost.style.display='none'; sidebarDrag=null; });
+canvas.addEventListener('dragover',e=>e.preventDefault());
+canvas.addEventListener('drop',e=>{
+  e.preventDefault(); if(!sidebarDrag) return;
+  const r=canvas.getBoundingClientRect();
+  const {col,row}=px2cell(e.clientX-r.left,e.clientY-r.top);
+  place(sidebarDrag,col,row);
+  sidebarDrag=null; ghost.style.display='none';
+});
+
+// ══════════════════════════════════════════════════════
+// PLACE
+// ══════════════════════════════════════════════════════
+function place(bid,col,row,w,h){
+  const b=getAllDefs().find(d=>d.id===bid); if(!b) return;
+  const pw=w||b.w, ph=h||b.h;
+  if(col<0||row<0||col+pw>COLS||row+ph>ROWS) return;
+  if(placed.some(p=>overlap(col,row,pw,ph,p.col,p.row,p.w,p.h))) return;
+  const id=bid+'_'+Date.now();
+  const entry={id,bid,col,row,w:pw,h:ph};
+  if(b.cat==='u'){ entry.customBg=b.bg; entry.customBd=b.bd; entry.customTx=b.tx; entry.customLabel=b.name; }
+  placed.push(entry);
+  selected=id;
+  document.getElementById('delBtn').style.display='';
+  updateCount(); draw();
+  return id;
+}
+
+function overlap(c1,r1,w1,h1,c2,r2,w2,h2){
+  return c1<c2+w2&&c1+w1>c2&&r1<r2+h2&&r1+h1>r2;
+}
+
+// ══════════════════════════════════════════════════════
+// MOUSE
+// ══════════════════════════════════════════════════════
+const HANDLE_R=7;
+
+function getHandle(mx,my,p){
+  const {x,y}=cell2px(p.col,p.row);
+  const pw=buildW(p.w),ph=buildH(p.h);
+  for(const [hx,hy,n] of [[x,y,'nw'],[x+pw,y,'ne'],[x,y+ph,'sw'],[x+pw,y+ph,'se']]){
+    if(Math.abs(mx-hx)<HANDLE_R&&Math.abs(my-hy)<HANDLE_R) return n;
+  }
+  return null;
+}
+function getBuilding(mx,my){
+  const {col,row}=px2cell(mx,my);
+  // Return topmost (last placed) at this cell
+  for(let i=placed.length-1;i>=0;i--){
+    const p=placed[i];
+    if(col>=p.col&&col<p.col+p.w&&row>=p.row&&row<p.row+p.h) return p;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown',e=>{
+  if(e.button!==0) return;
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+
+  if(selected){
+    const p=placed.find(x=>x.id===selected);
+    if(p){ const handle=getHandle(mx,my,p); if(handle){ resizing={id:p.id,origCol:p.col,origRow:p.row,origW:p.w,origH:p.h,handle,startMx:mx,startMy:my}; return; } }
+  }
+  const hit=getBuilding(mx,my);
+  if(hit){
+    selected=hit.id;
+    document.getElementById('delBtn').style.display='';
+    const b=getAllDefs().find(d=>d.id===hit.bid);
+    document.getElementById('selInfo').textContent=`${hit.customLabel||b.name} · ${hit.col},${hit.row} · ${hit.w}×${hit.h}`;
+    draggingMove={id:hit.id,startMx:mx,startMy:my,origCol:hit.col,origRow:hit.row};
+  } else {
+    selected=null;
+    document.getElementById('delBtn').style.display='none';
+    document.getElementById('selInfo').textContent='';
+  }
+  draw();
+});
+
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+
+  const hit=getBuilding(mx,my);
+  if(hit&&!resizing&&!draggingMove){
+    const b=getAllDefs().find(d=>d.id===hit.bid);
+    tip.innerHTML=`<strong>${hit.customLabel||b.name}</strong><small style="opacity:.5;display:block">${hit.col},${hit.row} · ${hit.w}×${hit.h}</small>`;
+    tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-8)+'px'; tip.style.opacity='1';
+  } else { tip.style.opacity='0'; }
+
+  if(selected&&!resizing&&!draggingMove){
+    const p=placed.find(x=>x.id===selected);
+    if(p){ canvas.style.cursor=getHandle(mx,my,p)?'nwse-resize':'crosshair'; }
+  }
+
+  if(resizing){
+    const p=placed.find(x=>x.id===resizing.id); if(!p) return;
+    const dx=Math.round((mx-resizing.startMx)/(CS+ST));
+    const dy=Math.round((my-resizing.startMy)/(CS+ST));
+    const h=resizing.handle;
+    let nc=resizing.origCol,nr=resizing.origRow,nw=resizing.origW,nh=resizing.origH;
+    if(h==='se'){ nw=Math.max(1,resizing.origW+dx); nh=Math.max(1,resizing.origH+dy); }
+    if(h==='sw'){ nc=resizing.origCol+dx; nw=Math.max(1,resizing.origW-dx); nh=Math.max(1,resizing.origH+dy); }
+    if(h==='ne'){ nr=resizing.origRow+dy; nw=Math.max(1,resizing.origW+dx); nh=Math.max(1,resizing.origH-dy); }
+    if(h==='nw'){ nc=resizing.origCol+dx; nr=resizing.origRow+dy; nw=Math.max(1,resizing.origW-dx); nh=Math.max(1,resizing.origH-dy); }
+    nc=Math.max(0,Math.min(COLS-1,nc)); nr=Math.max(0,Math.min(ROWS-1,nr));
+    nw=Math.max(1,Math.min(COLS-nc,nw)); nh=Math.max(1,Math.min(ROWS-nr,nh));
+    const others=placed.filter(x=>x.id!==p.id);
+    if(!others.some(o=>overlap(nc,nr,nw,nh,o.col,o.row,o.w,o.h))){
+      p.col=nc; p.row=nr; p.w=nw; p.h=nh;
+      const b=getAllDefs().find(d=>d.id===p.bid);
+      document.getElementById('selInfo').textContent=`${p.customLabel||b.name} · ${nc},${nr} · ${nw}×${nh}`;
+    }
+    draw(); return;
+  }
+
+  if(draggingMove){
+    const p=placed.find(x=>x.id===draggingMove.id); if(!p) return;
+    const dx=Math.round((mx-draggingMove.startMx)/(CS+ST));
+    const dy=Math.round((my-draggingMove.startMy)/(CS+ST));
+    const nc=Math.max(0,Math.min(COLS-p.w,draggingMove.origCol+dx));
+    const nr=Math.max(0,Math.min(ROWS-p.h,draggingMove.origRow+dy));
+    const others=placed.filter(x=>x.id!==p.id);
+    if(!others.some(o=>overlap(nc,nr,p.w,p.h,o.col,o.row,o.w,o.h))){ p.col=nc; p.row=nr; }
+    canvas.style.cursor='grabbing'; draw(); return;
+  }
+});
+
+canvas.addEventListener('mouseup',()=>{ resizing=null; draggingMove=null; canvas.style.cursor='crosshair'; });
+canvas.addEventListener('mouseleave',()=>{ resizing=null; draggingMove=null; tip.style.opacity='0'; canvas.style.cursor='crosshair'; });
+
+canvas.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  const r=canvas.getBoundingClientRect();
+  const hit=getBuilding(e.clientX-r.left,e.clientY-r.top);
+  if(hit){
+    placed.splice(placed.findIndex(p=>p.id===hit.id),1);
+    if(selected===hit.id){ selected=null; document.getElementById('delBtn').style.display='none'; document.getElementById('selInfo').textContent=''; }
+    updateCount(); draw();
+  }
+});
+
+// ══════════════════════════════════════════════════════
+// CONTROLS
+// ══════════════════════════════════════════════════════
+function applyGrid(){
+  COLS=Math.max(4,Math.min(40,parseInt(document.getElementById('gw').value)||14));
+  ROWS=Math.max(4,Math.min(40,parseInt(document.getElementById('gh').value)||14));
+  placed=placed.filter(p=>p.col+p.w<=COLS&&p.row+p.h<=ROWS);
+  resize(); updateCount(); draw();
+}
+function clearAll(){
+  if(!confirm('Очистить всю карту?')) return;
+  placed=[]; selected=null;
+  document.getElementById('delBtn').style.display='none';
+  document.getElementById('selInfo').textContent='';
+  updateCount(); draw();
+}
+function deleteSelected(){
+  if(!selected) return;
+  placed=placed.filter(p=>p.id!==selected); selected=null;
+  document.getElementById('delBtn').style.display='none';
+  document.getElementById('selInfo').textContent='';
+  updateCount(); draw();
+}
+function updateCount(){ document.getElementById('cnt').textContent=placed.length; }
+
+document.addEventListener('keydown',e=>{
+  if((e.key==='Delete'||e.key==='Backspace')&&selected&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) deleteSelected();
+  if(e.key==='Escape'){ selected=null; document.getElementById('delBtn').style.display='none'; document.getElementById('selInfo').textContent=''; draw(); }
+});
+
+// ══════════════════════════════════════════════════════
+// SAVE / LOAD
+// ══════════════════════════════════════════════════════
+function saveLayout(){
+  const a=document.createElement('a');
+  a.href='data:application/json,'+encodeURIComponent(JSON.stringify({cols:COLS,rows:ROWS,placed,customDefs:CUSTOM_DEFS,bgLandscape},null,2));
+  a.download='arkhal_plan.json'; a.click();
+}
+function loadLayout(){ document.getElementById('fi').click(); }
+function onFile(e){
+  const file=e.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      COLS=d.cols||14; ROWS=d.rows||14; placed=d.placed||[];
+      if(d.bgLandscape!==undefined){ bgLandscape=d.bgLandscape; buildBgButtons(); }
+      if(d.customDefs){
+        CUSTOM_DEFS=d.customDefs;
+        document.getElementById('bl-u').innerHTML='';
+        CUSTOM_DEFS.forEach(b=>addSidebarItem(b,'bl-u',true));
+        customCounter=CUSTOM_DEFS.length;
+        document.getElementById('sec-u').style.display=CUSTOM_DEFS.length?'':'none';
+      }
+      document.getElementById('gw').value=COLS;
+      document.getElementById('gh').value=ROWS;
+      selected=null; document.getElementById('delBtn').style.display='none';
+      resize(); updateCount(); draw();
+    } catch{ alert('Ошибка загрузки'); }
+  };
+  rd.readAsText(file); e.target.value='';
+}
+
+// ══════════════════════════════════════════════════════
+// EXPORT PNG  (2× retina)
+// ══════════════════════════════════════════════════════
+function exportPNG(){
+  const prevSel=selected; selected=null; draw();
+
+  const SCALE=2;
+  const uniqueBids=[...new Set(placed.map(p=>p.bid))];
+  const legendItems=uniqueBids.map(bid=>{
+    const def=getAllDefs().find(d=>d.id===bid);
+    const sample=placed.find(p=>p.bid===bid);
+    return def?{...def,customBg:sample?.customBg,customBd:sample?.customBd,customLabel:sample?.customLabel||def.name}:null;
+  }).filter(Boolean);
+
+  const PAD=28, TITLE_H=64;
+  const cols3=3, LEG_H=legendItems.length>0?Math.ceil(legendItems.length/cols3)*26+28:0;
+  const FOOTER_H=30;
+  const CW=canvas.width, CH=canvas.height;
+  const totalW=CW+PAD*2, totalH=CH+PAD*2+TITLE_H+LEG_H+FOOTER_H;
+
+  const exp=document.createElement('canvas');
+  exp.width=totalW*SCALE; exp.height=totalH*SCALE;
+  const ec=exp.getContext('2d');
+  ec.scale(SCALE,SCALE);
+
+  // Paper background
+  ec.fillStyle='#f0ece2'; ec.fillRect(0,0,totalW,totalH);
+
+  // Outer border — double line
+  ec.strokeStyle='#c0b080'; ec.lineWidth=2;
+  ec.strokeRect(5,5,totalW-10,totalH-10);
+  ec.strokeStyle='#d8cfa8'; ec.lineWidth=1;
+  ec.strokeRect(9,9,totalW-18,totalH-18);
+
+  // Decorative corner dots
+  [[12,12],[totalW-12,12],[12,totalH-12],[totalW-12,totalH-12]].forEach(([cx,cy])=>{
+    ec.fillStyle='#9a7830';
+    ec.beginPath(); ec.arc(cx,cy,3.5,0,Math.PI*2); ec.fill();
+  });
+
+  // Title
+  ec.textAlign='center'; ec.textBaseline='middle';
+  ec.font='bold 22px Cinzel,serif';
+  ec.fillStyle='#7a5e1a';
+  ec.fillText('АРКХОЛЛ', totalW/2, 16+TITLE_H/2-8);
+  ec.font='italic 10px Georgia,serif';
+  ec.fillStyle='#a08840';
+  ec.fillText('Схема городской планировки · Metalismatic', totalW/2, 16+TITLE_H/2+12);
+
+  // Divider
+  ec.strokeStyle='#d8cfa8'; ec.lineWidth=1;
+  ec.beginPath(); ec.moveTo(18,16+TITLE_H); ec.lineTo(totalW-18,16+TITLE_H); ec.stroke();
+
+  // Map — hi-res offscreen render
+  const HI=2;
+  const hiC=document.createElement('canvas');
+  hiC.width=CW*HI; hiC.height=CH*HI;
+  const hc=hiC.getContext('2d');
+  hc.scale(HI,HI);
+  drawMapOnCtx(hc,CW,CH);
+  ec.imageSmoothingEnabled=true; ec.imageSmoothingQuality='high';
+  ec.drawImage(hiC,PAD,PAD+TITLE_H,CW,CH);
+
+  // Map border
+  ec.strokeStyle='#b0a880'; ec.lineWidth=1.5;
+  ec.strokeRect(PAD-1,PAD+TITLE_H-1,CW+2,CH+2);
+
+  // Legend
+  if(legendItems.length>0){
+    const LY=PAD+TITLE_H+CH+14;
+    ec.strokeStyle='#d8cfa8'; ec.lineWidth=1;
+    ec.beginPath(); ec.moveTo(18,LY-5); ec.lineTo(totalW-18,LY-5); ec.stroke();
+
+    ec.font='700 8.5px Cinzel,serif';
+    ec.fillStyle='#8a7030'; ec.textAlign='left'; ec.textBaseline='top';
+    ec.fillText('ЛЕГЕНДА:', PAD, LY+2);
+
+    const colW=CW/cols3;
+    legendItems.forEach((b,i)=>{
+      const ci=i%cols3, ri=Math.floor(i/cols3);
+      const lx=PAD+ci*colW, ly=LY+18+ri*24;
+      ec.fillStyle=b.customBg||b.bg;
+      ec.fillRect(lx,ly,14,13);
+      ec.strokeStyle=b.customBd||b.bd; ec.lineWidth=1;
+      ec.strokeRect(lx,ly,14,13);
+      ec.font='8.5px Georgia,serif'; ec.fillStyle='#3a2810'; ec.textBaseline='middle';
+      ec.fillText(b.customLabel||b.name, lx+18, ly+6.5);
+    });
+  }
+
+  // Footer
+  const FY=totalH-FOOTER_H+8;
+  ec.strokeStyle='#d8cfa8'; ec.lineWidth=1;
+  ec.beginPath(); ec.moveTo(18,FY-4); ec.lineTo(totalW-18,FY-4); ec.stroke();
+  ec.font='italic 9.5px Georgia,serif'; ec.fillStyle='#8a7840'; ec.textAlign='center'; ec.textBaseline='middle';
+  ec.fillText(`Аркхолл · ${COLS}×${ROWS} кварталов · ${placed.length} объектов · ${new Date().toLocaleDateString('ru')}`, totalW/2, FY+9);
+
+  exp.toBlob(blob=>{
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='arkhal_map.png'; a.click();
+    selected=prevSel; draw();
+  },'image/png');
+}
+
+function drawMapOnCtx(ec,W,H){
+  // Paper
+  ec.fillStyle='#f1ecdf'; ec.fillRect(0,0,W,H);
+  // Streets
+  ec.fillStyle='#d6cfbb';
+  for(let c=0;c<=COLS;c++) ec.fillRect(c*(CS+ST),0,ST,H);
+  for(let r=0;r<=ROWS;r++) ec.fillRect(0,r*(CS+ST),W,ST);
+  // Cells
+  ec.fillStyle='#fbf8f1';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const {x,y}=cell2px(c,r); ec.fillRect(x,y,CS,CS);
+  }
+  // Background landscape for export
+  if(bgLandscape){
+    const bgDef=getAllDefs().find(d=>d.id===bgLandscape);
+    if(bgDef){
+      for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+        const isOccupied=placed.some(p=>c>=p.col&&c<p.col+p.w&&r>=p.row&&r<p.row+p.h);
+        if(!isOccupied){
+          const {x,y}=cell2px(c,r);
+          ec.fillStyle=bgDef.bg; ec.fillRect(x,y,CS,CS);
+          drawLandscapeTexture(ec,x,y,CS,CS,bgDef.landscapeType);
+        }
+      }
+    }
+  }
+  // Dot grid
+  ec.fillStyle='rgba(160,145,110,0.22)';
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const {x,y}=cell2px(c,r); ec.fillRect(x+CS/2-0.5,y+CS/2-0.5,1,1);
+  }
+  // Roads
+  const roadGrid=buildRoadGrid();
+  drawRoads(ec,roadGrid,true);
+  // Buildings
+  for(const p of placed){
+    const def=getAllDefs().find(d=>d.id===p.bid);
+    if(!def||def.isRoad) continue;
+    // use drawBuilding but with ec as context — we need a helper that accepts ec
+    const {x,y}=cell2px(p.col,p.row);
+    const pw=buildW(p.w),ph=buildH(p.h);
+    const bg=p.customBg||def.bg, bd=p.customBd||def.bd, tx=p.customTx||def.tx;
+    ec.save(); ec.shadowColor='rgba(0,0,0,0.16)'; ec.shadowBlur=7; ec.shadowOffsetX=2; ec.shadowOffsetY=3;
+    ec.fillStyle=bg; ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.fill(); ec.restore();
+    const gr=ec.createLinearGradient(x,y,x,y+ph);
+    gr.addColorStop(0,'rgba(255,255,255,0.28)'); gr.addColorStop(1,'rgba(0,0,0,0.06)');
+    ec.fillStyle=gr; ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.fill();
+    if(p.bid==='reserve') hatchEC(ec,x,y,pw,ph,'rgba(0,0,0,0.08)',10);
+    if(p.bid==='park') dotsEC(ec,x,y,pw,ph,'rgba(50,120,40,0.18)');
+    ec.strokeStyle=bd; ec.lineWidth=1.6;
+    ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.stroke();
+    // Special textures in export
+    if(p.bid==='tl') drawTLTexture(ec,x,y,pw,ph);
+    if(p.bid==='square') drawSquareTexture(ec,x,y,pw,ph);
+    // Icon buildings
+    if(def.icon){
+      drawIconBuilding(ec,x,y,pw,ph,def.icon,p.customLabel||def.name,p.customTx||def.tx);
+      ec.strokeStyle=p.customBd||def.bd; ec.lineWidth=1.6;
+      ec.beginPath(); rrectEC(ec,x,y,pw,ph,4); ec.stroke();
+      continue;
+    }
+    const displayName=p.customLabel||def.name;
+    const fs=Math.max(8,Math.min(13,pw/Math.max(displayName.length,1)*1.3));
+    ec.font=`700 ${fs}px 'Cinzel',serif`; ec.textAlign='center'; ec.textBaseline='middle'; ec.fillStyle=tx;
+    const lines=wrapText(displayName,pw-10,fs);
+    const lh=fs+2.5;
+    const ty=y+ph/2-(lines.length-1)*lh/2;
+    lines.forEach((l,i)=>ec.fillText(l,x+pw/2,ty+i*lh));
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+buildSidebar();
+buildPresets();
+buildBgButtons();
+resize();
+draw();
+</script>
+</body>
+</html>
