@@ -39,6 +39,8 @@ body{background:var(--bg);color:var(--text);font-family:'IM Fell English',Georgi
 .bi:hover{transform:translateX(3px);box-shadow:2px 2px 8px rgba(0,0,0,.14);}
 .bi:active{cursor:grabbing;}
 .bi-n{font-family:'Cinzel',serif;font-size:.66rem;font-weight:700;display:block;line-height:1.2;}
+.bi.active{outline:2px solid rgba(53,95,138,.65);box-shadow:0 0 0 2px rgba(53,95,138,.18),2px 2px 8px rgba(0,0,0,.14);transform:translateX(3px);}
+.mode-chip{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.08em;padding:4px 8px;border:1px solid var(--border);border-radius:3px;background:#fff8ea;color:var(--gold);}
 
 .map-area{flex:1;overflow:auto;padding:16px;background:var(--bg);}
 .map-area::-webkit-scrollbar{width:6px;height:6px;}.map-area::-webkit-scrollbar-track{background:var(--bg);}.map-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
@@ -84,6 +86,13 @@ canvas#grid{display:block;cursor:crosshair;border-radius:3px;box-shadow:0 3px 16
     <button class="btn btn-g" onclick="applyGrid()">OK</button>
   </div>
   <div class="sep"></div>
+  <button class="btn btn-b" id="brushBtn" onclick="toggleBrushMode()">Кисть: выкл</button>
+  <div class="grid-ctrl">
+    <span>Размер:</span>
+    <input id="brushSize" type="number" value="1" min="1" max="12">
+  </div>
+  <div id="clipInfo" class="mode-chip">Буфер: пусто</div>
+  <div class="sep"></div>
   <button class="btn btn-custom" onclick="openCustomModal()">＋ Своё</button>
   <div class="sep"></div>
   <button class="btn btn-r" onclick="clearAll()">Очистить</button>
@@ -121,7 +130,7 @@ canvas#grid{display:block;cursor:crosshair;border-radius:3px;box-shadow:0 3px 16
 </div>
 
 <div class="infobar">
-  <div class="hint">Тянуть из панели — поставить · ПКМ — удалить · Клик — выбрать · Тянуть за угол — изменить размер · Del — удалить</div>
+  <div class="hint">Тянуть из панели — поставить · Клик по элементу в панели — выбрать для кисти · Кисть красит область · Hover выделяет ячейку · Ctrl/Cmd+C — копировать · Ctrl/Cmd+V — вставить · ПКМ/Del — удалить</div>
   <div>Зданий: <span id="cnt">0</span></div>
   <div id="selInfo"></div>
 </div>
@@ -232,6 +241,11 @@ let selected = null;
 let resizing = null;
 let draggingMove = null;
 let sidebarDrag = null;
+let activeSidebarBid = null;
+let brushMode = false;
+let brushPainting = false;
+let hoverCell = null;
+let clipboardItem = null;
 
 const canvas = document.getElementById('grid');
 const ctx = canvas.getContext('2d');
@@ -291,6 +305,117 @@ function px2cell(px,py){ return {col:Math.floor(px/(CS+ST)), row:Math.floor(py/(
 function buildW(w){ return w*(CS+ST)-ST; }
 function buildH(h){ return h*(CS+ST)-ST; }
 function getAllDefs(){ return [...DEFS,...CUSTOM_DEFS]; }
+
+function getBrushSize(){
+  return Math.max(1,Math.min(12,parseInt(document.getElementById('brushSize').value)||1));
+}
+function getCellFromEvent(e){
+  const r=canvas.getBoundingClientRect();
+  return px2cell(e.clientX-r.left,e.clientY-r.top);
+}
+function isCellInside(col,row){ return col>=0&&row>=0&&col<COLS&&row<ROWS; }
+function getHoveredBuilding(){
+  if(!hoverCell) return null;
+  return placed.find(p=>hoverCell.col>=p.col&&hoverCell.col<p.col+p.w&&hoverCell.row>=p.row&&hoverCell.row<p.row+p.h) || null;
+}
+function clonePlacedItem(p,col,row){
+  return {
+    bid:p.bid,col,row,w:p.w,h:p.h,
+    customBg:p.customBg,customBd:p.customBd,customTx:p.customTx,customLabel:p.customLabel
+  };
+}
+function updateClipboardInfo(){
+  const el=document.getElementById('clipInfo');
+  if(!clipboardItem){ el.textContent='Буфер: пусто'; return; }
+  const def=getAllDefs().find(d=>d.id===clipboardItem.bid);
+  const label=clipboardItem.customLabel||def?.name||'Объект';
+  el.textContent=`Буфер: ${label} ${clipboardItem.w}×${clipboardItem.h}`;
+}
+function updateBrushButton(){
+  const btn=document.getElementById('brushBtn');
+  btn.textContent=`Кисть: ${brushMode?'вкл':'выкл'}`;
+  btn.className=`btn ${brushMode?'btn-g':'btn-b'}`;
+}
+function updateSidebarSelection(){
+  document.querySelectorAll('.bi').forEach(el=>el.classList.toggle('active', !!activeSidebarBid && el.dataset.bid===activeSidebarBid));
+}
+function selectSidebarBid(bid){
+  activeSidebarBid=bid;
+  updateSidebarSelection();
+}
+function toggleBrushMode(force){
+  brushMode = typeof force==='boolean' ? force : !brushMode;
+  updateBrushButton();
+  draw();
+}
+function setHoverCell(col,row){
+  hoverCell=isCellInside(col,row)?{col,row}:null;
+  draw();
+}
+function placeFromTemplate(template,col,row){
+  if(!template) return null;
+  const id=place(template.bid,col,row,template.w,template.h,false);
+  if(!id) return null;
+  const entry=placed.find(p=>p.id===id);
+  if(entry){
+    if(template.customBg) entry.customBg=template.customBg;
+    if(template.customBd) entry.customBd=template.customBd;
+    if(template.customTx) entry.customTx=template.customTx;
+    if(template.customLabel) entry.customLabel=template.customLabel;
+  }
+  draw();
+  return id;
+}
+function paintBrushAt(col,row){
+  if(!activeSidebarBid) return;
+  const size=getBrushSize();
+  const base=getAllDefs().find(d=>d.id===activeSidebarBid);
+  if(!base) return;
+  const touched=[];
+  for(let rr=row; rr<row+size; rr++){
+    for(let cc=col; cc<col+size; cc++){
+      if(!isCellInside(cc,rr)) continue;
+      const id=place(activeSidebarBid,cc,rr,base.w,base.h,false);
+      if(id) touched.push(id);
+    }
+  }
+  if(touched.length){
+    selected=touched[touched.length-1];
+    document.getElementById('delBtn').style.display='';
+    updateSelectionInfo();
+    draw();
+  }
+}
+function updateSelectionInfo(){
+  const info=document.getElementById('selInfo');
+  if(!selected){ info.textContent=''; return; }
+  const hit=placed.find(x=>x.id===selected);
+  if(!hit){ info.textContent=''; return; }
+  const b=getAllDefs().find(d=>d.id===hit.bid);
+  info.textContent=`${hit.customLabel||b?.name||'Объект'} · ${hit.col},${hit.row} · ${hit.w}×${hit.h}`;
+}
+async function copyHoveredBuilding(){
+  const hit=getHoveredBuilding() || (selected ? placed.find(p=>p.id===selected) : null);
+  if(!hit) return;
+  clipboardItem=clonePlacedItem(hit,hit.col,hit.row);
+  updateClipboardInfo();
+  try{ await navigator.clipboard.writeText(JSON.stringify({type:'arkhall-item',item:clipboardItem})); }catch{}
+}
+async function pasteClipboardAtHover(){
+  if(!hoverCell) return;
+  let tpl=clipboardItem;
+  if(!tpl){
+    try{
+      const txt=await navigator.clipboard.readText();
+      const parsed=JSON.parse(txt);
+      if(parsed?.type==='arkhall-item'&&parsed.item) tpl=parsed.item;
+    }catch{}
+  }
+  if(!tpl) return;
+  clipboardItem=tpl;
+  updateClipboardInfo();
+  placeFromTemplate({...tpl,col:hoverCell.col,row:hoverCell.row},hoverCell.col,hoverCell.row);
+}
 
 // ══════════════════════════════════════════════════════
 // ROAD MERGING
@@ -475,6 +600,28 @@ function draw(){
     const def=getAllDefs().find(d=>d.id===p.bid);
     if(!def||def.isRoad) continue;
     drawBuilding(ctx, p, def);
+  }
+
+  if(hoverCell){
+    const {x,y}=cell2px(hoverCell.col,hoverCell.row);
+    if(brushMode&&activeSidebarBid){
+      const size=getBrushSize();
+      const maxW=Math.min(size,COLS-hoverCell.col);
+      const maxH=Math.min(size,ROWS-hoverCell.row);
+      ctx.fillStyle='rgba(53,95,138,0.08)';
+      ctx.strokeStyle='rgba(53,95,138,0.55)';
+      ctx.lineWidth=1.5;
+      ctx.setLineDash([6,4]);
+      ctx.fillRect(x,y,buildW(maxW),buildH(maxH));
+      ctx.strokeRect(x-1,y-1,buildW(maxW)+2,buildH(maxH)+2);
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle='rgba(53,95,138,0.08)';
+      ctx.strokeStyle='rgba(53,95,138,0.65)';
+      ctx.lineWidth=1.3;
+      ctx.strokeRect(x-1,y-1,CS+2,CS+2);
+      ctx.fillRect(x,y,CS,CS);
+    }
   }
 
   // Selection ring
@@ -919,6 +1066,7 @@ function addSidebarItem(b, containerId, isCustom=false){
   } else {
     el.innerHTML=`<span class="bi-n">${b.name}</span>`;
   }
+  el.addEventListener('click',()=>selectSidebarBid(b.id));
   el.addEventListener('dragstart',onSidebarDragStart);
   document.getElementById(containerId).appendChild(el);
 }
@@ -927,6 +1075,7 @@ function buildSidebar(){
   ['bl-m','bl-r','bl-o','bl-l'].forEach(id=>document.getElementById(id).innerHTML='');
   const cats={m:'bl-m',r:'bl-r',o:'bl-o',l:'bl-l'};
   for(const b of DEFS) addSidebarItem(b,cats[b.cat],false);
+  updateSidebarSelection();
 }
 
 function removeCustomDef(cid){
@@ -940,11 +1089,13 @@ function removeCustomDef(cid){
   document.getElementById('bl-u').innerHTML='';
   CUSTOM_DEFS.forEach(b=>addSidebarItem(b,'bl-u',true));
   if(!CUSTOM_DEFS.length) document.getElementById('sec-u').style.display='none';
+  updateSidebarSelection();
   updateCount(); draw();
 }
 
 function onSidebarDragStart(e){
   sidebarDrag=e.currentTarget.dataset.bid;
+  selectSidebarBid(sidebarDrag);
   const b=getAllDefs().find(d=>d.id===sidebarDrag);
   ghost.style.cssText=`display:flex;width:${buildW(b.w)}px;height:${buildH(b.h)}px;background:${b.bg};border:1.5px solid ${b.bd};color:${b.tx};position:fixed;pointer-events:none;z-index:9999;border-radius:4px;opacity:.9;align-items:center;justify-content:center;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.2);padding:3px;line-height:1.2;font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;`;
   ghost.textContent=b.name;
@@ -965,7 +1116,7 @@ canvas.addEventListener('drop',e=>{
 // ══════════════════════════════════════════════════════
 // PLACE
 // ══════════════════════════════════════════════════════
-function place(bid,col,row,w,h){
+function place(bid,col,row,w,h,shouldDraw=true){
   const b=getAllDefs().find(d=>d.id===bid); if(!b) return;
   const pw=w||b.w, ph=h||b.h;
   if(col<0||row<0||col+pw>COLS||row+ph>ROWS) return;
@@ -976,7 +1127,9 @@ function place(bid,col,row,w,h){
   placed.push(entry);
   selected=id;
   document.getElementById('delBtn').style.display='';
-  updateCount(); draw();
+  updateCount();
+  updateSelectionInfo();
+  if(shouldDraw) draw();
   return id;
 }
 
@@ -1011,6 +1164,14 @@ canvas.addEventListener('mousedown',e=>{
   if(e.button!==0) return;
   const r=canvas.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const {col,row}=px2cell(mx,my);
+  hoverCell=isCellInside(col,row)?{col,row}:null;
+
+  if(brushMode&&activeSidebarBid){
+    brushPainting=true;
+    paintBrushAt(col,row);
+    return;
+  }
 
   if(selected){
     const p=placed.find(x=>x.id===selected);
@@ -1020,8 +1181,7 @@ canvas.addEventListener('mousedown',e=>{
   if(hit){
     selected=hit.id;
     document.getElementById('delBtn').style.display='';
-    const b=getAllDefs().find(d=>d.id===hit.bid);
-    document.getElementById('selInfo').textContent=`${hit.customLabel||b.name} · ${hit.col},${hit.row} · ${hit.w}×${hit.h}`;
+    updateSelectionInfo();
     draggingMove={id:hit.id,startMx:mx,startMy:my,origCol:hit.col,origRow:hit.row};
   } else {
     selected=null;
@@ -1034,6 +1194,8 @@ canvas.addEventListener('mousedown',e=>{
 canvas.addEventListener('mousemove',e=>{
   const r=canvas.getBoundingClientRect();
   const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const {col,row}=px2cell(mx,my);
+  hoverCell=isCellInside(col,row)?{col,row}:null;
 
   const hit=getBuilding(mx,my);
   if(hit&&!resizing&&!draggingMove){
@@ -1042,7 +1204,13 @@ canvas.addEventListener('mousemove',e=>{
     tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-8)+'px'; tip.style.opacity='1';
   } else { tip.style.opacity='0'; }
 
-  if(selected&&!resizing&&!draggingMove){
+  if(brushMode&&activeSidebarBid&&brushPainting&&hoverCell){
+    paintBrushAt(hoverCell.col,hoverCell.row);
+    canvas.style.cursor='cell';
+    return;
+  }
+
+  if(selected&&!resizing&&!draggingMove&&!brushMode){
     const p=placed.find(x=>x.id===selected);
     if(p){ canvas.style.cursor=getHandle(mx,my,p)?'nwse-resize':'crosshair'; }
   }
@@ -1062,8 +1230,7 @@ canvas.addEventListener('mousemove',e=>{
     const others=placed.filter(x=>x.id!==p.id);
     if(!others.some(o=>overlap(nc,nr,nw,nh,o.col,o.row,o.w,o.h))){
       p.col=nc; p.row=nr; p.w=nw; p.h=nh;
-      const b=getAllDefs().find(d=>d.id===p.bid);
-      document.getElementById('selInfo').textContent=`${p.customLabel||b.name} · ${nc},${nr} · ${nw}×${nh}`;
+      updateSelectionInfo();
     }
     draw(); return;
   }
@@ -1076,12 +1243,16 @@ canvas.addEventListener('mousemove',e=>{
     const nr=Math.max(0,Math.min(ROWS-p.h,draggingMove.origRow+dy));
     const others=placed.filter(x=>x.id!==p.id);
     if(!others.some(o=>overlap(nc,nr,p.w,p.h,o.col,o.row,o.w,o.h))){ p.col=nc; p.row=nr; }
+    updateSelectionInfo();
     canvas.style.cursor='grabbing'; draw(); return;
   }
+
+  canvas.style.cursor=brushMode?'cell':'crosshair';
+  draw();
 });
 
-canvas.addEventListener('mouseup',()=>{ resizing=null; draggingMove=null; canvas.style.cursor='crosshair'; });
-canvas.addEventListener('mouseleave',()=>{ resizing=null; draggingMove=null; tip.style.opacity='0'; canvas.style.cursor='crosshair'; });
+canvas.addEventListener('mouseup',()=>{ resizing=null; draggingMove=null; brushPainting=false; canvas.style.cursor=brushMode?'cell':'crosshair'; });
+canvas.addEventListener('mouseleave',()=>{ resizing=null; draggingMove=null; brushPainting=false; hoverCell=null; tip.style.opacity='0'; canvas.style.cursor=brushMode?'cell':'crosshair'; draw(); });
 
 canvas.addEventListener('contextmenu',e=>{
   e.preventDefault();
@@ -1119,9 +1290,14 @@ function deleteSelected(){
 }
 function updateCount(){ document.getElementById('cnt').textContent=placed.length; }
 
-document.addEventListener('keydown',e=>{
-  if((e.key==='Delete'||e.key==='Backspace')&&selected&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) deleteSelected();
-  if(e.key==='Escape'){ selected=null; document.getElementById('delBtn').style.display='none'; document.getElementById('selInfo').textContent=''; draw(); }
+document.addEventListener('keydown',async e=>{
+  const isTyping=['INPUT','TEXTAREA'].includes(document.activeElement.tagName);
+  const mod=e.ctrlKey||e.metaKey;
+  if((e.key==='Delete'||e.key==='Backspace')&&selected&&!isTyping) deleteSelected();
+  if(mod&&!isTyping&&e.key.toLowerCase()==='c'){ e.preventDefault(); await copyHoveredBuilding(); }
+  if(mod&&!isTyping&&e.key.toLowerCase()==='v'){ e.preventDefault(); await pasteClipboardAtHover(); }
+  if(!isTyping&&e.key.toLowerCase()==='b'){ e.preventDefault(); toggleBrushMode(); }
+  if(e.key==='Escape'){ selected=null; document.getElementById('delBtn').style.display='none'; document.getElementById('selInfo').textContent=''; brushPainting=false; draw(); }
 });
 
 // ══════════════════════════════════════════════════════
@@ -1145,6 +1321,7 @@ function onFile(e){
         CUSTOM_DEFS=d.customDefs;
         document.getElementById('bl-u').innerHTML='';
         CUSTOM_DEFS.forEach(b=>addSidebarItem(b,'bl-u',true));
+        updateSidebarSelection();
         customCounter=CUSTOM_DEFS.length;
         document.getElementById('sec-u').style.display=CUSTOM_DEFS.length?'':'none';
       }
@@ -1338,6 +1515,9 @@ function drawMapOnCtx(ec,W,H){
 buildSidebar();
 buildPresets();
 buildBgButtons();
+updateBrushButton();
+updateClipboardInfo();
+document.getElementById('brushSize').addEventListener('input',()=>draw());
 resize();
 draw();
 </script>
