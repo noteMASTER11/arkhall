@@ -42,10 +42,12 @@ body{background:var(--bg);color:var(--text);font-family:'IM Fell English',Georgi
 .bi.active{outline:2px solid rgba(53,95,138,.65);box-shadow:0 0 0 2px rgba(53,95,138,.18),2px 2px 8px rgba(0,0,0,.14);transform:translateX(3px);}
 .mode-chip{font-family:'Cinzel',serif;font-size:.58rem;letter-spacing:.08em;padding:4px 8px;border:1px solid var(--border);border-radius:3px;background:#fff8ea;color:var(--gold);}
 
-.map-area{flex:1;overflow:auto;padding:16px;background:var(--bg);}
+.map-area{flex:1;overflow:auto;padding:16px;background:var(--bg);position:relative;}
+#resizePreview{position:absolute;display:none;pointer-events:none;z-index:4;border-radius:3px;}
 .map-area::-webkit-scrollbar{width:6px;height:6px;}.map-area::-webkit-scrollbar-track{background:var(--bg);}.map-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 
 canvas#grid{display:block;cursor:crosshair;border-radius:3px;box-shadow:0 3px 16px rgba(0,0,0,.15),0 0 0 1px rgba(0,0,0,.06);}
+canvas#grid.canvas-resizing{cursor:nwse-resize !important;}
 
 #ghost{position:fixed;pointer-events:none;z-index:9999;border-radius:4px;opacity:.9;display:none;align-items:center;justify-content:center;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.25);padding:3px;line-height:1.2;font-family:'Cinzel',serif;font-size:.68rem;font-weight:700;}
 #tip{position:fixed;background:rgba(255,252,244,.97);border:1px solid var(--border);border-radius:4px;padding:5px 9px;font-size:.73rem;pointer-events:none;z-index:1000;opacity:0;transition:opacity .1s;max-width:180px;line-height:1.5;box-shadow:0 2px 10px rgba(0,0,0,.12);}
@@ -126,11 +128,12 @@ canvas#grid{display:block;cursor:crosshair;border-radius:3px;box-shadow:0 3px 16
 
   <div class="map-area" id="mapArea">
     <canvas id="grid"></canvas>
+    <canvas id="resizePreview"></canvas>
   </div>
 </div>
 
 <div class="infobar">
-  <div class="hint">Тянуть из панели — поставить · Клик по элементу в панели — выбрать для кисти · Кисть красит область · Hover выделяет ячейку · Ctrl/Cmd+C — копировать · Ctrl/Cmd+V — вставить · ПКМ/Del — удалить</div>
+  <div class="hint">Тянуть из панели — поставить · Клик по элементу в панели — выбрать для кисти · Кисть красит область · Hover выделяет ячейку · Ctrl/Cmd+C — копировать · Ctrl/Cmd+V — вставить · Потяни за правый нижний угол карты — изменить размер · ПКМ/Del — удалить</div>
   <div>Зданий: <span id="cnt">0</span></div>
   <div id="selInfo"></div>
 </div>
@@ -246,9 +249,13 @@ let brushMode = false;
 let brushPainting = false;
 let hoverCell = null;
 let clipboardItem = null;
+let canvasResizing = null;
 
 const canvas = document.getElementById('grid');
 const ctx = canvas.getContext('2d');
+const mapArea = document.getElementById('mapArea');
+const resizePreview = document.getElementById('resizePreview');
+const rpctx = resizePreview.getContext('2d');
 const ghost = document.getElementById('ghost');
 const tip = document.getElementById('tip');
 
@@ -299,6 +306,109 @@ document.getElementById('customModal').addEventListener('click', e=>{
 function resize(){
   canvas.width  = COLS*(CS+ST)+ST;
   canvas.height = ROWS*(CS+ST)+ST;
+  syncGridInputs();
+}
+function syncGridInputs(){
+  document.getElementById('gw').value=COLS;
+  document.getElementById('gh').value=ROWS;
+}
+function getCanvasResizeHandleRect(){
+  const s=Math.max(16,Math.min(24,CS*0.72));
+  return {x:canvas.width-s-4,y:canvas.height-s-4,size:s};
+}
+function isOverCanvasResizeHandle(mx,my){
+  const h=getCanvasResizeHandleRect();
+  return mx>=h.x&&mx<=h.x+h.size+4&&my>=h.y&&my<=h.y+h.size+4;
+}
+function getMinGridSize(){
+  let minCols=4,minRows=4;
+  for(const item of placed){
+    minCols=Math.max(minCols,item.col+item.w);
+    minRows=Math.max(minRows,item.row+item.h);
+  }
+  return {cols:minCols,rows:minRows};
+}
+function applyCanvasResize(nextCols,nextRows){
+  const min=getMinGridSize();
+  COLS=Math.max(min.cols,Math.min(80,nextCols));
+  ROWS=Math.max(min.rows,Math.min(80,nextRows));
+  resize();
+  updateCount();
+  draw();
+}
+function getSafePreviewGridSize(nextCols,nextRows){
+  const min=getMinGridSize();
+  return {
+    cols: Math.max(min.cols, Math.min(80, nextCols)),
+    rows: Math.max(min.rows, Math.min(80, nextRows))
+  };
+}
+function hideResizePreview(){
+  resizePreview.style.display='none';
+}
+function renderResizePreview(cols,rows){
+  const w=cols*(CS+ST)+ST;
+  const h=rows*(CS+ST)+ST;
+  resizePreview.width=w;
+  resizePreview.height=h;
+  resizePreview.style.display='block';
+  resizePreview.style.left=canvas.offsetLeft+'px';
+  resizePreview.style.top=canvas.offsetTop+'px';
+  rpctx.clearRect(0,0,w,h);
+
+  rpctx.save();
+  rpctx.fillStyle='rgba(247,241,227,0.46)';
+  rpctx.fillRect(0,0,w,h);
+  rpctx.strokeStyle='rgba(111,83,22,0.55)';
+  rpctx.lineWidth=1.5;
+  rpctx.setLineDash([8,6]);
+  rpctx.strokeRect(0.75,0.75,w-1.5,h-1.5);
+  rpctx.setLineDash([]);
+
+  rpctx.fillStyle='rgba(160,145,110,0.15)';
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const x=c*(CS+ST)+ST;
+    const y=r*(CS+ST)+ST;
+    rpctx.fillRect(x+CS/2-0.5, y+CS/2-0.5, 1, 1);
+  }
+
+  rpctx.save();
+  rpctx.globalAlpha=0.3;
+  const prevSelected=selected;
+  selected=null;
+  for(const p of placed){
+    if(p.col>=cols||p.row>=rows) continue;
+    const def=getAllDefs().find(d=>d.id===p.bid);
+    if(def) drawBuilding(rpctx,p,def);
+  }
+  selected=prevSelected;
+  rpctx.restore();
+
+  rpctx.fillStyle='rgba(111,83,22,0.78)';
+  rpctx.font="700 12px Cinzel";
+  rpctx.textBaseline='top';
+  rpctx.fillText(`${cols}×${rows}`, 10, 8);
+  rpctx.restore();
+}
+function updateCanvasResizePreview(clientX,clientY){
+  if(!canvasResizing) return;
+  const r=canvas.getBoundingClientRect();
+  const mx=clientX-r.left, my=clientY-r.top;
+  const dc=Math.round((mx-canvasResizing.startMx)/(CS+ST));
+  const dr=Math.round((my-canvasResizing.startMy)/(CS+ST));
+  const next=getSafePreviewGridSize(canvasResizing.startCols+dc,canvasResizing.startRows+dr);
+  canvasResizing.previewCols=next.cols;
+  canvasResizing.previewRows=next.rows;
+  renderResizePreview(next.cols,next.rows);
+}
+function finishCanvasResize(){
+  if(!canvasResizing) return;
+  const {previewCols,previewRows,startCols,startRows}=canvasResizing;
+  canvasResizing=null;
+  hideResizePreview();
+  canvas.classList.remove('canvas-resizing');
+  applyCanvasResize(previewCols||startCols,previewRows||startRows);
+  canvas.style.cursor=brushMode?'cell':'crosshair';
 }
 function cell2px(col,row){ return {x:col*(CS+ST)+ST, y:row*(CS+ST)+ST}; }
 function px2cell(px,py){ return {col:Math.floor(px/(CS+ST)), row:Math.floor(py/(CS+ST))}; }
@@ -623,6 +733,26 @@ function draw(){
       ctx.fillRect(x,y,CS,CS);
     }
   }
+
+  const rh=getCanvasResizeHandleRect();
+  ctx.save();
+  ctx.fillStyle='rgba(111,83,22,0.14)';
+  ctx.strokeStyle=canvasResizing?'rgba(111,83,22,0.8)':'rgba(111,83,22,0.42)';
+  ctx.lineWidth=1.2;
+  ctx.beginPath();
+  ctx.moveTo(rh.x+rh.size,rh.y);
+  ctx.lineTo(rh.x+rh.size,rh.y+rh.size);
+  ctx.lineTo(rh.x,rh.y+rh.size);
+  ctx.closePath();
+  ctx.fill();
+  for(let i=0;i<3;i++){
+    const off=5+i*5;
+    ctx.beginPath();
+    ctx.moveTo(rh.x+rh.size-off,rh.y+rh.size);
+    ctx.lineTo(rh.x+rh.size,rh.y+rh.size-off);
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // Selection ring
   if(selected){
@@ -1167,6 +1297,13 @@ canvas.addEventListener('mousedown',e=>{
   const {col,row}=px2cell(mx,my);
   hoverCell=isCellInside(col,row)?{col,row}:null;
 
+  if(isOverCanvasResizeHandle(mx,my)){
+    canvasResizing={startMx:mx,startMy:my,startCols:COLS,startRows:ROWS,previewCols:COLS,previewRows:ROWS};
+    canvas.classList.add('canvas-resizing');
+    renderResizePreview(COLS,ROWS);
+    return;
+  }
+
   if(brushMode&&activeSidebarBid){
     brushPainting=true;
     paintBrushAt(col,row);
@@ -1203,6 +1340,12 @@ canvas.addEventListener('mousemove',e=>{
     tip.innerHTML=`<strong>${hit.customLabel||b.name}</strong><small style="opacity:.5;display:block">${hit.col},${hit.row} · ${hit.w}×${hit.h}</small>`;
     tip.style.left=(e.clientX+12)+'px'; tip.style.top=(e.clientY-8)+'px'; tip.style.opacity='1';
   } else { tip.style.opacity='0'; }
+
+  if(canvasResizing){
+    updateCanvasResizePreview(e.clientX,e.clientY);
+    canvas.style.cursor='nwse-resize';
+    return;
+  }
 
   if(brushMode&&activeSidebarBid&&brushPainting&&hoverCell){
     paintBrushAt(hoverCell.col,hoverCell.row);
@@ -1247,12 +1390,21 @@ canvas.addEventListener('mousemove',e=>{
     canvas.style.cursor='grabbing'; draw(); return;
   }
 
-  canvas.style.cursor=brushMode?'cell':'crosshair';
+  canvas.style.cursor=isOverCanvasResizeHandle(mx,my)?'nwse-resize':(brushMode?'cell':'crosshair');
   draw();
 });
 
-canvas.addEventListener('mouseup',()=>{ resizing=null; draggingMove=null; brushPainting=false; canvas.style.cursor=brushMode?'cell':'crosshair'; });
-canvas.addEventListener('mouseleave',()=>{ resizing=null; draggingMove=null; brushPainting=false; hoverCell=null; tip.style.opacity='0'; canvas.style.cursor=brushMode?'cell':'crosshair'; draw(); });
+canvas.addEventListener('mouseup',()=>{ resizing=null; draggingMove=null; brushPainting=false; finishCanvasResize(); });
+canvas.addEventListener('mouseleave',()=>{ resizing=null; draggingMove=null; brushPainting=false; hoverCell=null; tip.style.opacity='0'; if(!canvasResizing){ canvas.classList.remove('canvas-resizing'); canvas.style.cursor=brushMode?'cell':'crosshair'; } draw(); });
+
+document.addEventListener('mousemove',e=>{
+  if(!canvasResizing) return;
+  updateCanvasResizePreview(e.clientX,e.clientY);
+});
+document.addEventListener('mouseup',()=>{
+  if(!canvasResizing) return;
+  finishCanvasResize();
+});
 
 canvas.addEventListener('contextmenu',e=>{
   e.preventDefault();
